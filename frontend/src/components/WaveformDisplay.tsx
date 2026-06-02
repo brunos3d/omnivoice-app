@@ -5,90 +5,118 @@ import { useEffect, useRef } from "react"
 interface WaveformDisplayProps {
   audioUrl: string | null
   isActive?: boolean
+  currentTime?: number
+  duration?: number
+  onSeek?: (time: number) => void
   className?: string
 }
 
-export function WaveformDisplay({ audioUrl, isActive, className }: WaveformDisplayProps) {
+export function WaveformDisplay({
+  audioUrl,
+  isActive,
+  currentTime = 0,
+  duration = 0,
+  onSeek,
+  className,
+}: WaveformDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animationRef = useRef<number>(0)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const waveDataRef = useRef<Float32Array | null>(null)
 
+  // Fetch and decode audio into PCM data once per URL — no playback
   useEffect(() => {
-    if (!audioUrl || !canvasRef.current) return
+    if (!audioUrl) return
+    waveDataRef.current = null
 
     const canvas = canvasRef.current
+    const ctx = canvas?.getContext("2d")
+    if (canvas && ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    }
+
+    const controller = new AbortController()
+
+    fetch(audioUrl, { signal: controller.signal })
+      .then((r) => r.arrayBuffer())
+      .then(async (buffer) => {
+        const audioCtx = new AudioContext()
+        try {
+          const decoded = await audioCtx.decodeAudioData(buffer)
+          waveDataRef.current = decoded.getChannelData(0)
+          if (canvas && ctx) drawWaveform(canvas, ctx, waveDataRef.current, 0, 0)
+        } finally {
+          await audioCtx.close()
+        }
+      })
+      .catch(() => {})
+
+    return () => controller.abort()
+  }, [audioUrl])
+
+  // Redraw playhead whenever playback position changes
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !waveDataRef.current) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
+    drawWaveform(canvas, ctx, waveDataRef.current, currentTime, duration)
+  }, [currentTime, duration])
 
-    let audio: HTMLAudioElement | null = new Audio(audioUrl)
-    audio.crossOrigin = "anonymous"
+  function drawWaveform(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    channelData: Float32Array,
+    time: number,
+    dur: number
+  ) {
+    const w = canvas.width
+    const h = canvas.height
+    const samples = w
+    const blockSize = Math.max(1, Math.floor(channelData.length / samples))
+    const progress = dur > 0 ? Math.min(1, time / dur) : 0
+    const playedX = Math.floor(progress * w)
 
-    const audioContext = new AudioContext()
-    audioContextRef.current = audioContext
+    // Canvas can't resolve `var(--x)`; read the computed CSS values first.
+    const styles = getComputedStyle(canvas)
+    const bg = `hsl(${styles.getPropertyValue("--background").trim() || "0 0% 100%"})`
+    const primary = styles.getPropertyValue("--primary").trim() || "0 0% 0%"
+    const playedColor = `hsl(${primary})`
+    const unplayedColor = `hsl(${primary} / 0.35)`
 
-    audio.addEventListener("canplay", () => {
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = 256
-      sourceRef.current = audioContext.createMediaElementSource(audio!)
-      sourceRef.current.connect(analyser)
-      analyser.connect(audioContext.destination)
+    ctx.clearRect(0, 0, w, h)
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, w, h)
 
-      analyserRef.current = analyser
-      audio?.play()
-    })
-
-    function draw() {
-      if (!canvas || !ctx) return
-      const w = canvas.width
-      const h = canvas.height
-
-      ctx.fillStyle = "hsl(var(--background))"
-      ctx.fillRect(0, 0, w, h)
-
-      if (analyserRef.current) {
-        const bufferLength = analyserRef.current.frequencyBinCount
-        const dataArray = new Uint8Array(bufferLength)
-        analyserRef.current.getByteTimeDomainData(dataArray)
-
-        ctx.lineWidth = 2
-        ctx.strokeStyle = "hsl(var(--primary))"
-        ctx.beginPath()
-
-        const sliceWidth = w / bufferLength
-        let x = 0
-
-        for (let i = 0; i < bufferLength; i++) {
-          const v = dataArray[i] / 128.0
-          const y = (v * h) / 2
-          if (i === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-          x += sliceWidth
-        }
-
-        ctx.stroke()
+    for (let i = 0; i < samples; i++) {
+      let sum = 0
+      for (let j = 0; j < blockSize; j++) {
+        sum += Math.abs(channelData[i * blockSize + j] ?? 0)
       }
-
-      animationRef.current = requestAnimationFrame(draw)
+      const avg = sum / blockSize
+      const barH = Math.max(2, avg * h * 2.5)
+      ctx.fillStyle = i < playedX ? playedColor : unplayedColor
+      ctx.fillRect(i, (h - barH) / 2, 1, barH)
     }
 
-    draw()
-
-    return () => {
-      cancelAnimationFrame(animationRef.current)
-      audio?.pause()
-      audio = null
-      audioContext.close()
+    // Playhead line
+    if (playedX > 0 && playedX < w) {
+      ctx.fillStyle = playedColor
+      ctx.fillRect(playedX - 1, 0, 2, h)
     }
-  }, [audioUrl])
+  }
+
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!onSeek || !duration) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    onSeek(((e.clientX - rect.left) / rect.width) * duration)
+  }
 
   return (
     <canvas
       ref={canvasRef}
       width={600}
       height={80}
-      className={`w-full h-20 rounded-md border ${isActive ? "border-primary" : "border-border"} ${className || ""}`}
+      onClick={handleClick}
+      className={`w-full h-20 rounded-md border ${isActive ? "border-primary" : "border-border"} ${onSeek && duration ? "cursor-pointer" : ""} ${className ?? ""}`}
     />
   )
 }

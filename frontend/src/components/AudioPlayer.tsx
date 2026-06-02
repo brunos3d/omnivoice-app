@@ -25,11 +25,15 @@ interface AudioPlayerProps {
 export function AudioPlayer({ audioUrl, title, duration, loading, className, jobId }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [naturalDuration, setNaturalDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const effectiveDuration = naturalDuration || duration || 0
 
   useEffect(() => {
     setIsPlaying(false)
     setCurrentTime(0)
+    setNaturalDuration(0)
   }, [audioUrl])
 
   const togglePlay = () => {
@@ -40,6 +44,13 @@ export function AudioPlayer({ audioUrl, title, duration, loading, className, job
     } else {
       el.play()
     }
+  }
+
+  const handleSeek = (time: number) => {
+    const el = audioRef.current
+    if (!el) return
+    el.currentTime = time
+    setCurrentTime(time)
   }
 
   const handleStop = () => {
@@ -102,11 +113,9 @@ export function AudioPlayer({ audioUrl, title, duration, loading, className, job
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-sm font-medium">{title || "Generated Audio"}</h4>
-            {duration && (
-              <p className="text-xs text-muted-foreground">
-                {formatDuration(duration)}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {formatDuration(currentTime)} / {formatDuration(effectiveDuration || duration)}
+            </p>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={togglePlay}>
@@ -144,10 +153,19 @@ export function AudioPlayer({ audioUrl, title, duration, loading, className, job
             </DropdownMenu>
           </div>
         </div>
-        <WaveformDisplay audioUrl={audioUrl} isActive={isPlaying} />
+        <WaveformDisplay
+          audioUrl={audioUrl}
+          isActive={isPlaying}
+          currentTime={currentTime}
+          duration={effectiveDuration || duration || 0}
+          onSeek={handleSeek}
+        />
         <audio
           ref={audioRef}
           src={audioUrl}
+          onLoadedMetadata={() => {
+            if (audioRef.current) setNaturalDuration(audioRef.current.duration)
+          }}
           onTimeUpdate={() => {
             if (audioRef.current) setCurrentTime(audioRef.current.currentTime)
           }}

@@ -1,5 +1,28 @@
 import { create } from "zustand"
-import type { VoiceProfile, JobStatus, GenerationSettings } from "@/types"
+import type { VoiceProfile, JobStatus, GenerationSettings, VoiceGenerationDefaults } from "@/types"
+
+// The application's built-in defaults — used when no voice profile is selected
+// or when the selected profile has no saved generation_defaults.
+export const SYSTEM_DEFAULTS: VoiceGenerationDefaults = {
+  num_step: 32,
+  guidance_scale: 2.0,
+  speed: null,
+  duration: null,
+  t_shift: 0.1,
+  denoise: true,
+  use_gpu: true,
+}
+
+function defaultsToSettings(d: VoiceGenerationDefaults): GenerationSettings {
+  return {
+    num_step: d.num_step,
+    guidance_scale: d.guidance_scale,
+    speed: d.speed,
+    duration: d.duration,
+    t_shift: d.t_shift,
+    denoise: d.denoise,
+  }
+}
 
 interface UploadedAudio {
   file: File
@@ -14,6 +37,10 @@ interface AppState {
   activeJobId: string | null
   activeJobStatus: JobStatus | null
   generationSettings: GenerationSettings
+  useGpu: boolean
+  // The defaults that were loaded when the current profile was selected.
+  // null means no profile is selected (or the profile has no saved defaults).
+  activeVoiceDefaults: VoiceGenerationDefaults | null
   voices: VoiceProfile[]
 
   setSelectedProfile: (profile: VoiceProfile | null) => void
@@ -22,6 +49,11 @@ interface AppState {
   setActiveJob: (jobId: string | null, status?: JobStatus | null) => void
   setActiveJobStatus: (status: JobStatus | null) => void
   updateGenerationSettings: (settings: Partial<GenerationSettings>) => void
+  setUseGpu: (value: boolean) => void
+  // Called after a successful "Save to Voice Profile" to sync the reference point.
+  setActiveVoiceDefaults: (defaults: VoiceGenerationDefaults | null) => void
+  // Reset current settings to whatever was loaded from the active voice (or system defaults).
+  resetSettings: () => void
   setVoices: (voices: VoiceProfile[]) => void
   addVoice: (voice: VoiceProfile) => void
   removeVoice: (id: string) => void
@@ -29,29 +61,73 @@ interface AppState {
   resetAudio: () => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   selectedProfile: null,
   uploadedAudio: null,
   recordedAudio: null,
   activeJobId: null,
   activeJobStatus: null,
-  generationSettings: {
-    num_step: 32,
-    guidance_scale: 2.0,
-    speed: null,
-    duration: null,
-    t_shift: 0.1,
-    denoise: true,
-  },
+  generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
+  useGpu: SYSTEM_DEFAULTS.use_gpu,
+  activeVoiceDefaults: null,
   voices: [],
 
-  setSelectedProfile: (profile) => set({ selectedProfile: profile, uploadedAudio: null, recordedAudio: null }),
+  setSelectedProfile: (profile) => {
+    if (!profile) {
+      set({
+        selectedProfile: null,
+        uploadedAudio: null,
+        recordedAudio: null,
+        activeVoiceDefaults: null,
+        generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
+        useGpu: SYSTEM_DEFAULTS.use_gpu,
+      })
+      return
+    }
+
+    const defaults = profile.generation_defaults
+    if (defaults) {
+      set({
+        selectedProfile: profile,
+        uploadedAudio: null,
+        recordedAudio: null,
+        activeVoiceDefaults: defaults,
+        generationSettings: defaultsToSettings(defaults),
+        useGpu: defaults.use_gpu,
+      })
+    } else {
+      // Profile exists but has no saved defaults — fall back to system defaults.
+      set({
+        selectedProfile: profile,
+        uploadedAudio: null,
+        recordedAudio: null,
+        activeVoiceDefaults: null,
+        generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
+        useGpu: SYSTEM_DEFAULTS.use_gpu,
+      })
+    }
+  },
+
   setUploadedAudio: (audio) => set({ uploadedAudio: audio, selectedProfile: null }),
   setRecordedAudio: (audio) => set({ recordedAudio: audio, selectedProfile: null }),
   setActiveJob: (jobId, status) => set({ activeJobId: jobId, activeJobStatus: status ?? null }),
   setActiveJobStatus: (status) => set({ activeJobStatus: status }),
+
   updateGenerationSettings: (settings) =>
     set((state) => ({ generationSettings: { ...state.generationSettings, ...settings } })),
+
+  setUseGpu: (value) => set({ useGpu: value }),
+
+  setActiveVoiceDefaults: (defaults) => set({ activeVoiceDefaults: defaults }),
+
+  resetSettings: () => {
+    const ref = get().activeVoiceDefaults ?? SYSTEM_DEFAULTS
+    set({
+      generationSettings: defaultsToSettings(ref),
+      useGpu: ref.use_gpu,
+    })
+  },
+
   setVoices: (voices) => set({ voices }),
   addVoice: (voice) => set((state) => ({ voices: [voice, ...state.voices] })),
   removeVoice: (id) => set((state) => ({ voices: state.voices.filter((v) => v.id !== id) })),

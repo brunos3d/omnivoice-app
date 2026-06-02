@@ -26,6 +26,7 @@ class VoiceProfile(Base):
     audio_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    generation_defaults: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

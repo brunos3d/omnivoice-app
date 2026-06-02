@@ -1,3 +1,4 @@
+import json
 import logging
 import shutil
 import uuid
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.db import VoiceProfile
-from app.schemas.voice import VoiceProfileResponse
+from app.schemas.voice import VoiceGenerationDefaults, VoiceProfileResponse
 from app.services.audio_preprocessing_service import (
     AudioPreprocessingError,
     process_audio,
@@ -41,6 +42,18 @@ def _effective_crop_end(tmp_path: Path, crop_end: Optional[float]) -> float:
         return crop_end
     total = probe_duration(tmp_path)
     return min(total, MAX_REFERENCE_DURATION)
+
+
+def _parse_generation_defaults(raw: Optional[str]) -> Optional[dict]:
+    """Parse a JSON string into a generation_defaults dict, returning None on failure."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        # Validate via Pydantic — drops unknown fields, applies defaults
+        return VoiceGenerationDefaults(**data).model_dump()
+    except Exception:
+        return None
 
 
 @router.get("", response_model=list[VoiceProfileResponse])
@@ -79,6 +92,7 @@ async def create_voice(
     description: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
     transcript: Optional[str] = Form(None),
+    generation_defaults: Optional[str] = Form(None),
     file: UploadFile = File(...),
     crop_start: float = Form(0.0),
     crop_end: Optional[float] = Form(None),
@@ -137,12 +151,16 @@ async def create_voice(
         audio_filename="reference.wav",
         audio_duration=meta["duration"],
         meta=meta,
+        generation_defaults=_parse_generation_defaults(generation_defaults),
     )
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
 
-    logger.info("Created voice profile %s (%s, %.2fs, src=%s)", profile_id, name, meta["duration"], meta["source_format"])
+    logger.info(
+        "Created voice profile %s (%s, %.2fs, src=%s)",
+        profile_id, name, meta["duration"], meta["source_format"],
+    )
     return profile
 
 
@@ -153,6 +171,7 @@ async def update_voice(
     description: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
     transcript: Optional[str] = Form(None),
+    generation_defaults: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     crop_start: float = Form(0.0),
     crop_end: Optional[float] = Form(None),
@@ -170,6 +189,10 @@ async def update_voice(
         profile.language = language
     if transcript is not None:
         profile.transcript = transcript
+
+    # Update generation_defaults when explicitly provided (empty string clears it)
+    if generation_defaults is not None:
+        profile.generation_defaults = _parse_generation_defaults(generation_defaults) if generation_defaults else None
 
     if file is not None and file.filename:
         voice_dir = settings.VOICES_DIR / profile.id
@@ -202,7 +225,6 @@ async def update_voice(
         finally:
             tmp_path.unlink(missing_ok=True)
 
-        # Refresh metadata.json
         meta_path = voice_dir / "metadata.json"
         write_metadata_json(
             meta_path,
@@ -218,11 +240,31 @@ async def update_voice(
         profile.audio_duration = meta["duration"]
         profile.meta = meta
         omnivoice_service.invalidate_voice_cache(profile.id)
-        logger.info("Updated audio for profile %s (%.2fs, src=%s)", profile_id, meta["duration"], meta["source_format"])
+        logger.info(
+            "Updated audio for profile %s (%.2fs, src=%s)",
+            profile_id, meta["duration"], meta["source_format"],
+        )
 
     await db.commit()
     await db.refresh(profile)
     logger.info("Updated voice profile %s", profile_id)
+    return profile
+
+
+@router.patch("/{profile_id}/defaults", response_model=VoiceProfileResponse)
+async def save_voice_defaults(
+    profile_id: str,
+    defaults: VoiceGenerationDefaults,
+    db: AsyncSession = Depends(get_db),
+):
+    """Persist generation defaults for a voice profile without touching audio."""
+    profile = await db.get(VoiceProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+    profile.generation_defaults = defaults.model_dump()
+    await db.commit()
+    await db.refresh(profile)
+    logger.info("Saved generation defaults for voice profile %s", profile_id)
     return profile
 
 

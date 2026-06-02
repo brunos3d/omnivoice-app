@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { VoiceRecorder } from "@/components/VoiceRecorder"
 import { AudioCropEditor } from "@/components/AudioCropEditor"
+import { getAudioDuration } from "@/lib/audio-duration"
 
 const MAX_DURATION = 10
 
@@ -29,28 +30,6 @@ interface AudioState {
   url?: string
   duration?: number
   error?: string
-}
-
-function detectDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const audio = new Audio()
-    audio.preload = "metadata"
-    audio.onloadedmetadata = () => {
-      URL.revokeObjectURL(url)
-      if (isFinite(audio.duration) && audio.duration > 0) {
-        resolve(audio.duration)
-      } else {
-        URL.revokeObjectURL(url)
-        reject(new Error("Could not determine duration"))
-      }
-    }
-    audio.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("Browser cannot read this audio format"))
-    }
-    audio.src = url
-  })
 }
 
 function fmtDur(s: number): string {
@@ -88,9 +67,14 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
     e.target.value = "" // allow re-selecting same file
     if (!file) return
 
+    console.debug(
+      "[VoiceProfileAudioInput] uploaded file  name=%s  type=%s  size=%d bytes",
+      file.name, file.type, file.size,
+    )
     setAudioState({ stage: "loading" })
     try {
-      const duration = await detectDuration(file)
+      const duration = await getAudioDuration(file)
+      console.debug("[VoiceProfileAudioInput] upload duration resolved: %.3f s", duration)
       transition(file, duration)
     } catch {
       setAudioState({ stage: "error", error: "Could not read audio file. Try another format or record directly." })
@@ -99,9 +83,13 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
   }
 
   const handleRecordingComplete = useCallback(
-    (blob: Blob, _url: string, duration: number) => {
+    (blob: Blob, _url: string, timerDuration: number) => {
+      console.debug(
+        "[VoiceProfileAudioInput] recording complete  type=%s  size=%d bytes  timer=%.3f s",
+        blob.type, blob.size, timerDuration,
+      )
       const file = new File([blob], "recording.webm", { type: blob.type || "audio/webm" })
-      transition(file, duration)
+      transition(file, timerDuration)
     },
     [transition],
   )
@@ -109,6 +97,10 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
   // Called by AudioCropEditor on every region update-end
   const handleCropChange = useCallback(
     (start: number, end: number, isValid: boolean) => {
+      console.debug(
+        "[VoiceProfileAudioInput] crop change  start=%.3f  end=%.3f  len=%.3f  valid=%s  totalDuration=%.3f",
+        start, end, end - start, isValid, durationRef.current,
+      )
       onChange({
         file: fileRef.current!,
         cropStart: start,

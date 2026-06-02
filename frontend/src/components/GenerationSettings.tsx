@@ -1,153 +1,185 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { useAppStore } from "@/store/use-store"
-import { fetchDeviceSettings, updateDeviceSettings } from "@/lib/api"
-import { Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { RotateCcw, Save, CheckCircle } from "lucide-react"
+import { GenerationSettingsFields } from "@/components/GenerationSettingsFields"
+import { useAppStore, SYSTEM_DEFAULTS } from "@/store/use-store"
+import { saveVoiceGenerationDefaults, fetchDeviceSettings, updateDeviceSettings } from "@/lib/api"
+import type { VoiceGenerationDefaults } from "@/types"
+
+function settingsEqual(
+  a: VoiceGenerationDefaults,
+  b: VoiceGenerationDefaults,
+): boolean {
+  return (
+    a.num_step === b.num_step &&
+    Math.abs(a.guidance_scale - b.guidance_scale) < 0.001 &&
+    a.speed === b.speed &&
+    a.duration === b.duration &&
+    Math.abs(a.t_shift - b.t_shift) < 0.001 &&
+    a.denoise === b.denoise &&
+    a.use_gpu === b.use_gpu
+  )
+}
 
 export function GenerationSettings() {
-  const settings = useAppStore((s) => s.generationSettings)
-  const update = useAppStore((s) => s.updateGenerationSettings)
-  const [useGpu, setUseGpu] = useState(true)
-  const [cudaAvailable, setCudaAvailable] = useState(false)
-  const [settingsLoading, setSettingsLoading] = useState(true)
+  const generationSettings = useAppStore((s) => s.generationSettings)
+  const useGpu = useAppStore((s) => s.useGpu)
+  const updateGenerationSettings = useAppStore((s) => s.updateGenerationSettings)
+  const setUseGpu = useAppStore((s) => s.setUseGpu)
+  const activeVoiceDefaults = useAppStore((s) => s.activeVoiceDefaults)
+  const selectedProfile = useAppStore((s) => s.selectedProfile)
+  const setActiveVoiceDefaults = useAppStore((s) => s.setActiveVoiceDefaults)
+  const resetSettings = useAppStore((s) => s.resetSettings)
+  const updateVoice = useAppStore((s) => s.updateVoice)
 
+  const [cudaAvailable, setCudaAvailable] = useState(false)
+  const [gpuLoading, setGpuLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Fetch server GPU state on mount and sync into store
   useEffect(() => {
     fetchDeviceSettings()
       .then((res) => {
-        setUseGpu(res.use_gpu)
+        // Only update if no voice-profile defaults have already been loaded;
+        // that way a freshly-selected voice always wins over the server state.
+        if (!useAppStore.getState().activeVoiceDefaults) {
+          setUseGpu(res.use_gpu)
+        }
         setCudaAvailable(res.cuda_available)
       })
       .catch(() => {})
-      .finally(() => setSettingsLoading(false))
-  }, [])
+      .finally(() => setGpuLoading(false))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleGpuToggle = async (v: boolean) => {
-    setUseGpu(v)
-    try {
-      await updateDeviceSettings(v)
-    } catch {
-      setUseGpu(!v)
+  // When the selected profile changes, sync use_gpu to the server so the
+  // backend immediately reflects the loaded voice's GPU preference.
+  const prevProfileIdRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const currentId = selectedProfile?.id
+    if (currentId !== prevProfileIdRef.current) {
+      prevProfileIdRef.current = currentId
+      if (activeVoiceDefaults !== null) {
+        updateDeviceSettings(activeVoiceDefaults.use_gpu).catch(() => {})
+      }
+    }
+  }, [selectedProfile?.id, activeVoiceDefaults])
+
+  // Build the combined current state for comparison
+  const current: VoiceGenerationDefaults = {
+    ...generationSettings,
+    use_gpu: useGpu,
+  }
+
+  const reference = activeVoiceDefaults ?? SYSTEM_DEFAULTS
+  const isDirty = !settingsEqual(current, reference)
+
+  const handleFieldChange = (next: VoiceGenerationDefaults) => {
+    updateGenerationSettings({
+      num_step: next.num_step,
+      guidance_scale: next.guidance_scale,
+      speed: next.speed,
+      duration: next.duration,
+      t_shift: next.t_shift,
+      denoise: next.denoise,
+    })
+    if (next.use_gpu !== useGpu) {
+      setUseGpu(next.use_gpu)
+      updateDeviceSettings(next.use_gpu).catch(() => {})
     }
   }
+
+  const handleSave = async () => {
+    if (!selectedProfile || !isDirty) return
+    setSaving(true)
+    try {
+      const updated = await saveVoiceGenerationDefaults(selectedProfile.id, current)
+      // Sync the store so the dirty indicator clears
+      setActiveVoiceDefaults(current)
+      updateVoice(selectedProfile.id, { generation_defaults: updated.generation_defaults })
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2500)
+    } catch {
+      // Silently fail — the button state remains dirty
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const triggerLabel = (
+    <span className="flex items-center gap-2">
+      Generation Settings
+      {isDirty && selectedProfile && (
+        <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+          Modified
+        </span>
+      )}
+      {!isDirty && selectedProfile && activeVoiceDefaults && (
+        <span className="text-[10px] font-medium text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+          Voice preset
+        </span>
+      )}
+    </span>
+  )
 
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="settings">
-        <AccordionTrigger className="text-sm">Generation Settings</AccordionTrigger>
+        <AccordionTrigger className="text-sm">{triggerLabel}</AccordionTrigger>
         <AccordionContent>
           <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-xs">Inference Steps</Label>
-                <span className="text-xs text-muted-foreground">{settings.num_step}</span>
-              </div>
-              <Slider
-                value={[settings.num_step]}
-                onValueChange={([v]) => update({ num_step: v })}
-                min={4}
-                max={64}
-                step={1}
-              />
-            </div>
+            {selectedProfile && activeVoiceDefaults && !isDirty && (
+              <p className="text-[11px] text-muted-foreground">
+                Using defaults from{" "}
+                <span className="font-medium text-foreground">{selectedProfile.name}</span>
+              </p>
+            )}
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-xs">Guidance Scale</Label>
-                <span className="text-xs text-muted-foreground">{settings.guidance_scale.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[settings.guidance_scale]}
-                onValueChange={([v]) => update({ guidance_scale: v })}
-                min={0}
-                max={4}
-                step={0.1}
-              />
-            </div>
+            <GenerationSettingsFields
+              value={current}
+              onChange={handleFieldChange}
+              cudaAvailable={cudaAvailable}
+              gpuLoading={gpuLoading}
+            />
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-xs">Speed</Label>
-                <span className="text-xs text-muted-foreground">
-                  {settings.speed ? `${settings.speed.toFixed(2)}x` : "Auto"}
-                </span>
-              </div>
-              <Slider
-                value={[settings.speed ?? 1.0]}
-                onValueChange={([v]) => update({ speed: v === 1.0 ? null : v })}
-                min={0.5}
-                max={1.5}
-                step={0.05}
-              />
-            </div>
+            {/* Reset / Save actions — only shown when dirty */}
+            {isDirty && (
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 flex-1"
+                  onClick={resetSettings}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Reset
+                </Button>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-xs">Duration (seconds)</Label>
-                <span className="text-xs text-muted-foreground">
-                  {settings.duration ? `${settings.duration}s` : "Auto"}
-                </span>
+                {selectedProfile && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1.5 flex-1"
+                    onClick={handleSave}
+                    disabled={saving}
+                  >
+                    <Save className="h-3 w-3" />
+                    {saving ? "Saving…" : "Save to Voice Profile"}
+                  </Button>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="Auto"
-                  min={1}
-                  max={120}
-                  value={settings.duration ?? ""}
-                  onChange={(e) => update({ duration: e.target.value ? Number(e.target.value) : null })}
-                  className="h-8 text-xs"
-                />
+            )}
+
+            {saveSuccess && (
+              <div className="flex items-center gap-1.5 text-xs text-green-600">
+                <CheckCircle className="h-3.5 w-3.5" />
+                Voice profile updated
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-xs">Time Shift</Label>
-                <span className="text-xs text-muted-foreground">{settings.t_shift.toFixed(2)}</span>
-              </div>
-              <Slider
-                value={[settings.t_shift]}
-                onValueChange={([v]) => update({ t_shift: v })}
-                min={0}
-                max={1}
-                step={0.01}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Denoise</Label>
-              <Switch
-                checked={settings.denoise}
-                onCheckedChange={(v) => update({ denoise: v })}
-              />
-            </div>
-
-            <Separator className="my-2" />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-xs">Use GPU (CUDA)</Label>
-                <p className="text-[10px] text-muted-foreground">
-                  {settingsLoading ? "Checking..." : cudaAvailable ? "GPU available" : "No GPU detected"}
-                </p>
-              </div>
-              {settingsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              ) : (
-                <Switch
-                  checked={useGpu}
-                  onCheckedChange={handleGpuToggle}
-                  disabled={!cudaAvailable}
-                />
-              )}
-            </div>
+            )}
           </div>
         </AccordionContent>
       </AccordionItem>

@@ -1,4 +1,4 @@
-import type { VoiceProfile, GenerationRequest, JobResponse, ModelStatus } from "@/types"
+import type { VoiceProfile, VoiceGenerationDefaults, GenerationRequest, JobResponse, ModelStatus } from "@/types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -48,6 +48,17 @@ export async function updateVoice(id: string, formData: FormData): Promise<Voice
 
 export async function deleteVoice(id: string): Promise<void> {
   await request<void>(`/voices/${id}`, { method: "DELETE" })
+}
+
+export async function saveVoiceGenerationDefaults(
+  id: string,
+  defaults: VoiceGenerationDefaults,
+): Promise<VoiceProfile> {
+  return request<VoiceProfile>(`/voices/${id}/defaults`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(defaults),
+  })
 }
 
 export function getVoiceAudioUrl(id: string): string {

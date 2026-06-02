@@ -3,6 +3,16 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
+class VoiceGenerationDefaults(BaseModel):
+    num_step: int = 32
+    guidance_scale: float = 2.0
+    speed: Optional[float] = None
+    duration: Optional[float] = None
+    t_shift: float = 0.1
+    denoise: bool = True
+    use_gpu: bool = True
+
+
 class VoiceProfileCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -26,6 +36,7 @@ class VoiceProfileResponse(BaseModel):
     audio_filename: str
     audio_duration: Optional[float]
     meta: Optional[dict[str, Any]]
+    generation_defaults: Optional[VoiceGenerationDefaults] = None
     created_at: datetime
     last_used_at: Optional[datetime]
 

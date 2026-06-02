@@ -32,19 +32,118 @@ def _ffprobe(path: Path, entries: str, section: str = "format") -> str:
     return result.stdout.decode().strip()
 
 
-def probe_duration(path: Path) -> float:
-    """Return audio duration in seconds using ffprobe."""
-    raw = _ffprobe(path, "duration", section="format")
-    # Some containers (e.g. OGG) don't report duration in the format section; try stream
-    if not raw or raw == "N/A":
-        raw = _ffprobe(path, "duration", section="stream")
-        raw = raw.splitlines()[0].strip() if raw else ""
+def _ffprobe_safe(path: Path, entries: str, section: str = "format") -> str:
+    """Like _ffprobe but returns '' instead of raising on failure."""
     try:
-        return float(raw)
+        return _ffprobe(path, entries, section)
+    except AudioPreprocessingError:
+        return ""
+
+
+def _parse_duration_str(raw: Optional[str]) -> Optional[float]:
+    """Parse a duration string from ffprobe output; returns None if invalid or non-positive."""
+    if not raw:
+        return None
+    first = raw.splitlines()[0].strip()
+    if not first or first == "N/A":
+        return None
+    try:
+        val = float(first)
+        return val if val > 0 else None
     except (ValueError, TypeError):
-        raise AudioPreprocessingError(
-            f"Could not determine audio duration for '{path.name}'"
+        return None
+
+
+def probe_duration(path: Path) -> float:
+    """Return audio duration in seconds with multiple fallback strategies.
+
+    Browser-recorded WebM (Chrome/Edge/Firefox via MediaRecorder) often lacks a
+    Duration element in the container header. Four strategies are tried in order,
+    guaranteeing a result even when metadata is absent.
+    """
+    size = path.stat().st_size if path.exists() else -1
+    logger.debug("probe_duration: %s  size=%d bytes", path.name, size)
+
+    # Strategy 1: format section — fast path for WAV, MP3, MP4, FLAC, OGG(some)
+    raw = _ffprobe_safe(path, "duration", section="format")
+    dur = _parse_duration_str(raw)
+    if dur is not None:
+        logger.debug("probe_duration[S1:format]: %s → %.3f s", path.name, dur)
+        return dur
+
+    # Strategy 2: stream section — needed for OGG and some MKV/WebM with stream-level info
+    raw = _ffprobe_safe(path, "duration", section="stream")
+    dur = _parse_duration_str(raw)
+    if dur is not None:
+        logger.debug("probe_duration[S2:stream]: %s → %.3f s", path.name, dur)
+        return dur
+
+    # Strategy 3: force full file scan.
+    # Chrome/Edge MediaRecorder produces WebM without a Duration element in the
+    # Segment Info block. ffprobe's default probesize stops reading early and
+    # reports N/A. With probesize=100 MB we read the entire file, letting ffprobe
+    # derive duration from the last packet timestamp.
+    logger.debug(
+        "probe_duration[S3:full-scan]: %s — format/stream headers lack duration, scanning full file",
+        path.name,
+    )
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-probesize", "104857600",       # 100 MB — covers any short reference clip
+                "-analyzeduration", "100000000", # 100 s in microseconds
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            timeout=60,
         )
+        raw = result.stdout.decode().strip()
+        dur = _parse_duration_str(raw)
+        if dur is not None:
+            logger.debug("probe_duration[S3:full-scan]: %s → %.3f s", path.name, dur)
+            return dur
+        logger.debug("probe_duration[S3:full-scan]: %s → still N/A", path.name)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.debug("probe_duration[S3:full-scan]: %s — error: %s", path.name, exc)
+
+    # Strategy 4: derive from last audio packet timestamp.
+    # ffprobe reads every packet PTS; the last one equals the duration.
+    logger.debug("probe_duration[S4:packets]: %s — reading packet timestamps", path.name)
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-select_streams", "a:0",
+                "-show_entries", "packet=pts_time",
+                "-of", "csv=print_section=0",
+                str(path),
+            ],
+            capture_output=True,
+            timeout=60,
+        )
+        lines = [l.strip() for l in result.stdout.decode().splitlines() if l.strip()]
+        for line in reversed(lines):
+            dur = _parse_duration_str(line)
+            if dur is not None:
+                logger.debug(
+                    "probe_duration[S4:packets]: %s → %.3f s (last packet PTS)",
+                    path.name, dur,
+                )
+                return dur
+        logger.debug("probe_duration[S4:packets]: %s — no valid PTS found", path.name)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.debug("probe_duration[S4:packets]: %s — error: %s", path.name, exc)
+
+    logger.error(
+        "probe_duration: all 4 strategies failed for %s (size=%d bytes)",
+        path.name, size,
+    )
+    raise AudioPreprocessingError(
+        f"Could not determine audio duration for '{path.name}'"
+    )
 
 
 def probe_format_name(path: Path) -> str:

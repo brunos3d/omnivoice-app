@@ -15,6 +15,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -30,15 +36,16 @@ import {
   VoiceProfileAudioInput,
   AudioInputResult,
 } from "@/components/VoiceProfileAudioInput";
+import { GenerationSettingsFields } from "@/components/GenerationSettingsFields";
 import {
   createVoice,
   updateVoice as updateVoiceApi,
   deleteVoice,
   getVoiceAudioUrl,
 } from "@/lib/api";
-import { useAppStore } from "@/store/use-store";
+import { useAppStore, SYSTEM_DEFAULTS } from "@/store/use-store";
 import { useVoices } from "@/hooks/use-generation";
-import type { VoiceProfile } from "@/types";
+import type { VoiceProfile, VoiceGenerationDefaults } from "@/types";
 
 const LANGUAGES = [
   "Auto",
@@ -58,6 +65,8 @@ function formatDuration(seconds: number | null): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+const EMPTY_FORM = { name: "", transcript: "", language: "Auto" };
+
 export function VoiceLibrary() {
   const { data: voices, isLoading } = useVoices();
   const queryClient = useQueryClient();
@@ -66,27 +75,20 @@ export function VoiceLibrary() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<VoiceProfile | null>(
-    null,
-  );
+  const [editingProfile, setEditingProfile] = useState<VoiceProfile | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  // Create form state
-  const [createForm, setCreateForm] = useState({
-    name: "",
-    transcript: "",
-    language: "Auto",
-  });
+  // ── Create form ──────────────────────────────────────────────────────────
+  const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const [createAudio, setCreateAudio] = useState<AudioInputResult | null>(null);
+  const [createSettings, setCreateSettings] = useState<VoiceGenerationDefaults>(SYSTEM_DEFAULTS);
 
-  // Edit form state
-  const [editForm, setEditForm] = useState({
-    name: "",
-    transcript: "",
-    language: "Auto",
-  });
+  // ── Edit form ────────────────────────────────────────────────────────────
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
   const [editAudio, setEditAudio] = useState<AudioInputResult | null>(null);
+  const [editSettings, setEditSettings] = useState<VoiceGenerationDefaults>(SYSTEM_DEFAULTS);
 
+  // ── Mutations ────────────────────────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteVoice(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["voices"] }),
@@ -97,34 +99,38 @@ export function VoiceLibrary() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["voices"] });
       setIsCreateOpen(false);
-      setCreateForm({ name: "", transcript: "", language: "Auto" });
+      setCreateForm(EMPTY_FORM);
       setCreateAudio(null);
+      setCreateSettings(SYSTEM_DEFAULTS);
     },
   });
 
   const editMutation = useMutation({
     mutationFn: ({ id, formData }: { id: string; formData: FormData }) =>
       updateVoiceApi(id, formData),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["voices"] });
+      // If the updated profile is currently selected, refresh its defaults in the store.
+      if (selectedProfile?.id === updated.id) {
+        setSelectedProfile(updated);
+      }
       setIsEditOpen(false);
       setEditingProfile(null);
       setEditAudio(null);
     },
   });
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleCreate = () => {
     if (!createForm.name || !createAudio?.isValid) return;
     const fd = new FormData();
     fd.append("name", createForm.name);
     fd.append("transcript", createForm.transcript);
-    fd.append(
-      "language",
-      createForm.language === "Auto" ? "" : createForm.language,
-    );
+    fd.append("language", createForm.language === "Auto" ? "" : createForm.language);
     fd.append("file", createAudio.file);
     fd.append("crop_start", String(createAudio.cropStart));
     fd.append("crop_end", String(createAudio.cropEnd));
+    fd.append("generation_defaults", JSON.stringify(createSettings));
     createMutation.mutate(fd);
   };
 
@@ -137,21 +143,19 @@ export function VoiceLibrary() {
       language: profile.language || "Auto",
     });
     setEditAudio(null);
+    setEditSettings(profile.generation_defaults ?? SYSTEM_DEFAULTS);
     setIsEditOpen(true);
   };
 
   const handleEditSave = () => {
     if (!editingProfile || !editForm.name) return;
-    // If new audio is being set, it must be valid
     if (editAudio !== null && !editAudio.isValid) return;
 
     const fd = new FormData();
     fd.append("name", editForm.name);
     fd.append("transcript", editForm.transcript);
-    fd.append(
-      "language",
-      editForm.language === "Auto" ? "" : editForm.language,
-    );
+    fd.append("language", editForm.language === "Auto" ? "" : editForm.language);
+    fd.append("generation_defaults", JSON.stringify(editSettings));
     if (editAudio) {
       fd.append("file", editAudio.file);
       fd.append("crop_start", String(editAudio.cropStart));
@@ -161,17 +165,13 @@ export function VoiceLibrary() {
   };
 
   const previewAudio = (profile: VoiceProfile) => {
-    if (playingId === profile.id) {
-      setPlayingId(null);
-    } else {
-      setPlayingId(profile.id);
-    }
+    setPlayingId((prev) => (prev === profile.id ? null : profile.id));
   };
 
   const isCreateValid = !!createForm.name && !!createAudio?.isValid;
-  const isEditValid =
-    !!editForm.name && (editAudio === null || editAudio.isValid);
+  const isEditValid = !!editForm.name && (editAudio === null || editAudio.isValid);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -183,8 +183,9 @@ export function VoiceLibrary() {
           onOpenChange={(open) => {
             setIsCreateOpen(open);
             if (!open) {
-              setCreateForm({ name: "", transcript: "", language: "Auto" });
+              setCreateForm(EMPTY_FORM);
               setCreateAudio(null);
+              setCreateSettings(SYSTEM_DEFAULTS);
             }
           }}
         >
@@ -193,7 +194,7 @@ export function VoiceLibrary() {
               <Plus className="h-3 w-3" /> New
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create Voice Profile</DialogTitle>
               <DialogDescription>
@@ -215,9 +216,7 @@ export function VoiceLibrary() {
               <div className="space-y-2">
                 <Label>
                   Reference Transcript{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (optional)
-                  </span>
+                  <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Textarea
                   placeholder="Transcript of the reference audio — improves cloning accuracy."
@@ -232,30 +231,46 @@ export function VoiceLibrary() {
                 <Label>Language</Label>
                 <Select
                   value={createForm.language}
-                  onValueChange={(v) =>
-                    setCreateForm({ ...createForm, language: v })
-                  }
+                  onValueChange={(v) => setCreateForm({ ...createForm, language: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {LANGUAGES.map((lang) => (
-                      <SelectItem key={lang} value={lang}>
-                        {lang}
-                      </SelectItem>
+                      <SelectItem key={lang} value={lang}>{lang}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Generation Settings — collapsed by default */}
+              <Accordion type="single" collapsible className="w-full border rounded-lg px-3">
+                <AccordionItem value="gen-settings" className="border-none">
+                  <AccordionTrigger className="text-sm py-3">
+                    Generation Settings
+                    <span className="ml-auto mr-2 text-[10px] text-muted-foreground font-normal">
+                      optional preset
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pb-2">
+                      <GenerationSettingsFields
+                        value={createSettings}
+                        onChange={setCreateSettings}
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
               <div className="space-y-2">
                 <Label>Audio Sample</Label>
                 <VoiceProfileAudioInput onChange={setCreateAudio} />
               </div>
               {createMutation.isError && (
                 <p className="text-xs text-destructive">
-                  {(createMutation.error as Error)?.message ??
-                    "Failed to create profile"}
+                  {(createMutation.error as Error)?.message ?? "Failed to create profile"}
                 </p>
               )}
               <Button
@@ -280,7 +295,7 @@ export function VoiceLibrary() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Voice Profile</DialogTitle>
               <DialogDescription>
@@ -293,17 +308,13 @@ export function VoiceLibrary() {
                 <Input
                   placeholder="Voice name"
                   value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, name: e.target.value })
-                  }
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label>
                   Reference Transcript{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (optional)
-                  </span>
+                  <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Textarea
                   placeholder="Transcript of the reference audio — improves cloning accuracy."
@@ -318,35 +329,46 @@ export function VoiceLibrary() {
                 <Label>Language</Label>
                 <Select
                   value={editForm.language}
-                  onValueChange={(v) =>
-                    setEditForm({ ...editForm, language: v })
-                  }
+                  onValueChange={(v) => setEditForm({ ...editForm, language: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {LANGUAGES.map((lang) => (
-                      <SelectItem key={lang} value={lang}>
-                        {lang}
-                      </SelectItem>
+                      <SelectItem key={lang} value={lang}>{lang}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Generation Settings — pre-populated from profile */}
+              <Accordion type="single" collapsible className="w-full border rounded-lg px-3">
+                <AccordionItem value="gen-settings" className="border-none">
+                  <AccordionTrigger className="text-sm py-3">
+                    Generation Settings
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pb-2">
+                      <GenerationSettingsFields
+                        value={editSettings}
+                        onChange={setEditSettings}
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
               <div className="space-y-2">
                 <Label>
                   Replace Audio{" "}
-                  <span className="text-muted-foreground font-normal">
-                    (optional)
-                  </span>
+                  <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <VoiceProfileAudioInput onChange={setEditAudio} />
               </div>
               {editMutation.isError && (
                 <p className="text-xs text-destructive">
-                  {(editMutation.error as Error)?.message ??
-                    "Failed to save changes"}
+                  {(editMutation.error as Error)?.message ?? "Failed to save changes"}
                 </p>
               )}
               <Button
@@ -383,19 +405,19 @@ export function VoiceLibrary() {
                   <div className="flex items-center gap-2 min-w-0">
                     <User className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {profile.name}
-                      </p>
+                      <p className="text-sm font-medium truncate">{profile.name}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
                           {formatDuration(profile.audio_duration)}
                         </span>
                         {profile.language && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1 py-0"
-                          >
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">
                             {profile.language}
+                          </Badge>
+                        )}
+                        {profile.generation_defaults && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            preset
                           </Badge>
                         )}
                       </div>

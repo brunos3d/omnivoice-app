@@ -1,3 +1,13 @@
+export interface VoiceGenerationDefaults {
+  num_step: number
+  guidance_scale: number
+  speed: number | null
+  duration: number | null
+  t_shift: number
+  denoise: boolean
+  use_gpu: boolean
+}
+
 export interface VoiceProfile {
   id: string
   name: string
@@ -7,6 +17,7 @@ export interface VoiceProfile {
   audio_filename: string
   audio_duration: number | null
   meta: Record<string, unknown> | null
+  generation_defaults: VoiceGenerationDefaults | null
   created_at: string
   last_used_at: string | null
 }

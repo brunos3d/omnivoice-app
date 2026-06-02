@@ -5,7 +5,8 @@ import { Play, Pause, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
-const MAX_CLIP = 10;
+const MAX_CLIP = 15;
+const INITIAL_CLIP = 10;
 const MIN_CLIP = 3;
 const INITIAL_ZOOM = 50;
 
@@ -39,7 +40,7 @@ export function AudioCropEditor({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [cropStart, setCropStart] = useState(0);
-  const [cropEnd, setCropEnd] = useState(Math.min(MAX_CLIP, totalDuration));
+  const [cropEnd, setCropEnd] = useState(Math.min(INITIAL_CLIP, totalDuration));
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,7 +85,7 @@ export function AudioCropEditor({
 
         setIsReady(true);
 
-        const initialEnd = Math.min(MAX_CLIP, totalDuration);
+        const initialEnd = Math.min(INITIAL_CLIP, totalDuration);
         const region = regionsPlugin.addRegion({
           start: 0,
           end: initialEnd,
@@ -99,7 +100,7 @@ export function AudioCropEditor({
         setCropStart(0);
         setCropEnd(initialEnd);
         setValidationError(null);
-        onCropChangeRef.current(0, initialEnd, true);
+        onCropChangeRef.current(0, initialEnd, initialEnd >= MIN_CLIP);
 
         region.on("update", () => {
           setCropStart(region.start);

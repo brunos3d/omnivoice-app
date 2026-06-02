@@ -6,7 +6,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-MAX_REFERENCE_DURATION = 10.0
+MAX_REFERENCE_DURATION = 15.0
 MIN_CROP_DURATION = 3.0
 
 

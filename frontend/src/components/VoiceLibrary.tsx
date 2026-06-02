@@ -198,7 +198,7 @@ export function VoiceLibrary() {
             <DialogHeader>
               <DialogTitle>Create Voice Profile</DialogTitle>
               <DialogDescription>
-                Upload or record a voice sample. Files longer than 10s will open
+                Upload or record a voice sample. Files longer than 15s will open
                 a crop editor.
               </DialogDescription>
             </DialogHeader>

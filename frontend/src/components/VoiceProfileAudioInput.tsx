@@ -1,126 +1,157 @@
-"use client"
+"use client";
 
-import { useState, useCallback, useRef } from "react"
-import { Upload, Trash2, CheckCircle, AlertCircle, Clock } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { VoiceRecorder } from "@/components/VoiceRecorder"
-import { AudioCropEditor } from "@/components/AudioCropEditor"
-import { getAudioDuration } from "@/lib/audio-duration"
+import { useState, useCallback, useRef } from "react";
+import { Upload, Trash2, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { AudioCropEditor } from "@/components/AudioCropEditor";
+import { getAudioDuration } from "@/lib/audio-duration";
 
-const MAX_DURATION = 10
+const RECOMMENDED_DURATION = 10;
 
 export interface AudioInputResult {
-  file: File
-  cropStart: number
-  cropEnd: number
-  audioDuration: number
-  isValid: boolean
+  file: File;
+  cropStart: number;
+  cropEnd: number;
+  audioDuration: number;
+  isValid: boolean;
 }
 
 interface VoiceProfileAudioInputProps {
-  onChange: (result: AudioInputResult | null) => void
+  onChange: (result: AudioInputResult | null) => void;
 }
 
-type Stage = "idle" | "loading" | "error" | "ready" | "crop"
+type Stage = "idle" | "loading" | "error" | "ready" | "crop";
 
 interface AudioState {
-  stage: Stage
-  file?: File
-  url?: string
-  duration?: number
-  error?: string
+  stage: Stage;
+  file?: File;
+  url?: string;
+  duration?: number;
+  error?: string;
 }
 
 function fmtDur(s: number): string {
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return m > 0 ? `${m}m ${sec}s` : `${s.toFixed(1)}s`
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m > 0 ? `${m}m ${sec}s` : `${s.toFixed(1)}s`;
 }
 
-export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps) {
-  const [audioState, setAudioState] = useState<AudioState>({ stage: "idle" })
+export function VoiceProfileAudioInput({
+  onChange,
+}: VoiceProfileAudioInputProps) {
+  const [audioState, setAudioState] = useState<AudioState>({ stage: "idle" });
   // Stable refs so WaveSurfer callbacks always read the latest file/duration
-  const fileRef = useRef<File | null>(null)
-  const durationRef = useRef<number>(0)
+  const fileRef = useRef<File | null>(null);
+  const durationRef = useRef<number>(0);
 
   const transition = useCallback(
     (file: File, duration: number) => {
-      fileRef.current = file
-      durationRef.current = duration
-      const url = URL.createObjectURL(file)
+      fileRef.current = file;
+      durationRef.current = duration;
+      const url = URL.createObjectURL(file);
 
-      if (duration <= MAX_DURATION) {
-        setAudioState({ stage: "ready", file, url, duration })
-        onChange({ file, cropStart: 0, cropEnd: duration, audioDuration: duration, isValid: true })
+      if (duration <= RECOMMENDED_DURATION) {
+        setAudioState({ stage: "ready", file, url, duration });
+        onChange({
+          file,
+          cropStart: 0,
+          cropEnd: duration,
+          audioDuration: duration,
+          isValid: true,
+        });
       } else {
-        const cropEnd = Math.min(MAX_DURATION, duration)
-        setAudioState({ stage: "crop", file, url, duration })
-        onChange({ file, cropStart: 0, cropEnd, audioDuration: duration, isValid: true })
+        const cropEnd = Math.min(RECOMMENDED_DURATION, duration);
+        setAudioState({ stage: "crop", file, url, duration });
+        onChange({
+          file,
+          cropStart: 0,
+          cropEnd,
+          audioDuration: duration,
+          isValid: true,
+        });
       }
     },
     [onChange],
-  )
+  );
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = "" // allow re-selecting same file
-    if (!file) return
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting same file
+    if (!file) return;
 
     console.debug(
       "[VoiceProfileAudioInput] uploaded file  name=%s  type=%s  size=%d bytes",
-      file.name, file.type, file.size,
-    )
-    setAudioState({ stage: "loading" })
+      file.name,
+      file.type,
+      file.size,
+    );
+    setAudioState({ stage: "loading" });
     try {
-      const duration = await getAudioDuration(file)
-      console.debug("[VoiceProfileAudioInput] upload duration resolved: %.3f s", duration)
-      transition(file, duration)
+      const duration = await getAudioDuration(file);
+      console.debug(
+        "[VoiceProfileAudioInput] upload duration resolved: %.3f s",
+        duration,
+      );
+      transition(file, duration);
     } catch {
-      setAudioState({ stage: "error", error: "Could not read audio file. Try another format or record directly." })
-      onChange(null)
+      setAudioState({
+        stage: "error",
+        error:
+          "Could not read audio file. Try another format or record directly.",
+      });
+      onChange(null);
     }
-  }
+  };
 
   const handleRecordingComplete = useCallback(
     (blob: Blob, _url: string, timerDuration: number) => {
       console.debug(
         "[VoiceProfileAudioInput] recording complete  type=%s  size=%d bytes  timer=%.3f s",
-        blob.type, blob.size, timerDuration,
-      )
-      const file = new File([blob], "recording.webm", { type: blob.type || "audio/webm" })
-      transition(file, timerDuration)
+        blob.type,
+        blob.size,
+        timerDuration,
+      );
+      const file = new File([blob], "recording.webm", {
+        type: blob.type || "audio/webm",
+      });
+      transition(file, timerDuration);
     },
     [transition],
-  )
+  );
 
   // Called by AudioCropEditor on every region update-end
   const handleCropChange = useCallback(
     (start: number, end: number, isValid: boolean) => {
       console.debug(
         "[VoiceProfileAudioInput] crop change  start=%.3f  end=%.3f  len=%.3f  valid=%s  totalDuration=%.3f",
-        start, end, end - start, isValid, durationRef.current,
-      )
+        start,
+        end,
+        end - start,
+        isValid,
+        durationRef.current,
+      );
       onChange({
         file: fileRef.current!,
         cropStart: start,
         cropEnd: end,
         audioDuration: durationRef.current,
         isValid,
-      })
+      });
     },
     [onChange],
-  )
+  );
 
   const handleClear = () => {
-    if (audioState.url) URL.revokeObjectURL(audioState.url)
-    fileRef.current = null
-    durationRef.current = 0
-    setAudioState({ stage: "idle" })
-    onChange(null)
-  }
+    if (audioState.url) URL.revokeObjectURL(audioState.url);
+    fileRef.current = null;
+    durationRef.current = 0;
+    setAudioState({ stage: "idle" });
+    onChange(null);
+  };
 
-  const { stage, file, url, duration, error } = audioState
+  const { stage, file, url, duration, error } = audioState;
 
   if (stage === "idle") {
     return (
@@ -139,7 +170,7 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
         </Button>
         <VoiceRecorder onRecordingComplete={handleRecordingComplete} />
       </div>
-    )
+    );
   }
 
   if (stage === "loading") {
@@ -148,7 +179,7 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
         <span className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         Analyzing audio…
       </div>
-    )
+    );
   }
 
   if (stage === "error") {
@@ -162,7 +193,7 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
           Try Again
         </Button>
       </div>
-    )
+    );
   }
 
   if (stage === "ready" && file && url && duration !== undefined) {
@@ -177,13 +208,18 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
               {fmtDur(duration)}
             </Badge>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleClear}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={handleClear}
+          >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
         <audio controls src={url} className="h-8 w-full" />
       </div>
-    )
+    );
   }
 
   if (stage === "crop" && file && url && duration !== undefined) {
@@ -200,7 +236,12 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
               {fmtDur(duration)} — trim required
             </Badge>
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleClear}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={handleClear}
+          >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
@@ -210,8 +251,8 @@ export function VoiceProfileAudioInput({ onChange }: VoiceProfileAudioInputProps
           onCropChange={handleCropChange}
         />
       </div>
-    )
+    );
   }
 
-  return null
+  return null;
 }

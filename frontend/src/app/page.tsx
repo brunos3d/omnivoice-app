@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Wand2, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageLayout } from "@/components/shell/PageLayout";
@@ -25,9 +25,11 @@ export default function TextToSpeechPage() {
   const voiceDesign = useAppStore((s) => s.voiceDesign);
   const setVoiceDesign = useAppStore((s) => s.setVoiceDesign);
   const activeJobId = useAppStore((s) => s.activeJobId);
+  // Language lives in the store (null = Auto) so selecting a voice auto-applies its
+  // language, matching how the API applies a voice's language at generation time.
+  const language = useAppStore((s) => s.ttsLanguage);
+  const setLanguage = useAppStore((s) => s.setTtsLanguage);
 
-  // null = "Auto" / auto-detect; otherwise the OmniVoice language id sent to the model.
-  const [language, setLanguage] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const showPrompts = text.length === 0;

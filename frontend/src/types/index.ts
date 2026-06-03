@@ -86,6 +86,8 @@ export interface VoiceListPage {
 
 export interface GenerationRequest {
   text: string
+  /** Optional model selector. null/undefined falls back to the platform default. */
+  model_id?: string | null
   voice_profile_id?: string | null
   ref_text?: string | null
   language?: string | null
@@ -126,9 +128,46 @@ export interface GenerationSettings {
   denoise: boolean
 }
 
+export interface ModelCapabilities {
+  supports_tts: boolean
+  supports_voice_cloning: boolean
+  supports_emotions: boolean
+  supports_singing: boolean
+  supports_streaming: boolean
+  supports_api: boolean
+}
+
+export interface Model {
+  id: string
+  name: string
+  description: string
+  version: string
+  provider: string
+  repo_id: string | null
+  model_path: string | null
+  supported_languages: string[]
+  supported_tags: string[]
+  supported_voice_design: string[]
+  capabilities: ModelCapabilities
+  status: "available" | "loading" | "loaded" | "error" | "disabled"
+  is_default: boolean
+  is_builtin: boolean
+  editions: string[]
+}
+
+export interface ModelTagMetadata {
+  id: string
+  label: string
+  emoji: string
+  category: string
+  description: string
+  syntax: string
+}
+
 export interface ModelStatus {
   loaded: boolean
   loading: boolean
   error: string | null
   sampling_rate: number
+  resident_model_id?: string | null
 }

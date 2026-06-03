@@ -8,6 +8,8 @@ import type {
   ApiKeyCreateResponse,
   GenerationRequest,
   JobResponse,
+  Model,
+  ModelTagMetadata,
   ModelStatus,
 } from "@/types"
 
@@ -167,6 +169,19 @@ export function getJobAudioMp3Url(jobId: string): string {
 
 export function getJobAudioConvertedUrl(jobId: string, format: "mp3" | "ogg"): string {
   return `${API_URL}/jobs/${jobId}/audio/${format}`
+}
+
+export async function fetchModels(): Promise<Model[]> {
+  const data = await request<{ models: Model[] }>("/models")
+  return data.models
+}
+
+export async function fetchModel(id: string): Promise<Model> {
+  return request<Model>(`/models/${id}`)
+}
+
+export async function fetchModelTags(id: string): Promise<{ model_id: string; tags: ModelTagMetadata[] }> {
+  return request<{ model_id: string; tags: ModelTagMetadata[] }>(`/models/${id}/tags`)
 }
 
 export async function fetchModelStatus(): Promise<ModelStatus> {

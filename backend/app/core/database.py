@@ -1,4 +1,3 @@
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -28,13 +27,8 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db() -> None:
+    # Lazy import avoids a circular import (migrations imports Base from this module).
+    from app.core.migrations import run_migrations
+
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Add generation_defaults column to existing databases that predate this field.
-        # SQLite raises OperationalError on duplicate columns — safe to ignore.
-        try:
-            await conn.execute(
-                text("ALTER TABLE voice_profiles ADD COLUMN generation_defaults JSON")
-            )
-        except Exception:
-            pass
+        await run_migrations(conn)

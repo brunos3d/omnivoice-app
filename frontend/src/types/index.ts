@@ -11,17 +11,47 @@ export interface VoiceGenerationDefaults {
   voice_design: string[]
 }
 
+export type VoiceStatus = "ready" | "archived" | "processing" | "failed"
+
+/**
+ * Derived, read-only snapshot of a voice's traits, generated server-side from
+ * `voice_design` (source of truth) + preset tags. Filtering/search read this — never
+ * edited by hand.
+ */
+export interface VoiceCharacteristics {
+  gender: string | null
+  age_group: string | null
+  accent: string | null
+  pitch: string | null
+  style_tags: string[]
+  speaking_speed: string | null
+  emotional_range: string | null
+}
+
 export interface VoiceProfile {
   id: string
+  /** Stable, never-changing public identifier (e.g. "voice_8JXQ29K4L3"). */
+  public_voice_id: string
+  owner_id: string
   name: string
   description: string | null
   language: string | null
+  language_code: string | null
   transcript: string | null
   audio_filename: string
   audio_duration: number | null
   meta: Record<string, unknown> | null
   generation_defaults: VoiceGenerationDefaults | null
+  preset_tags: string[] | null
+  characteristics: VoiceCharacteristics | null
+  is_public: boolean
+  is_community_voice: boolean
+  is_preset_voice: boolean
+  is_favorite: boolean
+  status: VoiceStatus
+  usage_count: number
   created_at: string
+  updated_at: string | null
   last_used_at: string | null
 }
 

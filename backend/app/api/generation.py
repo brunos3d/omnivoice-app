@@ -116,7 +116,9 @@ async def create_generation_job(
         ref_audio_key = await resolve_voice_audio_key(profile.id)
         if not ref_audio_key:
             raise HTTPException(status_code=404, detail="Voice profile audio file not found")
+        # Usage analytics — powers Recently Used / Popular / Trending later.
         profile.last_used_at = datetime.now(timezone.utc)
+        profile.usage_count = (profile.usage_count or 0) + 1
 
     gen_params = request.model_dump(exclude={"text", "voice_profile_id", "ref_text", "language", "instruct"})
 

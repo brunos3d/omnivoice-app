@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Text, DateTime, Float, JSON
+from sqlalchemy import String, Text, DateTime, Float, JSON, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.config import settings
 from app.core.database import Base
+from app.utils.ids import generate_public_voice_id
 
 
 def _now() -> datetime:
@@ -15,19 +17,56 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
+class User(Base):
+    """Minimal account record. SaaS-ready, but no authentication exists yet — the
+    self-hosted Community Edition seeds a single system user (``settings.LOCAL_OWNER_ID``)
+    that owns every resource."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    handle: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class VoiceProfile(Base):
     __tablename__ = "voice_profiles"
 
+    # Internal UUID (primary key, used for storage paths). Unchanged.
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    # Public, stable, never-changing external identifier (APIs/SDKs/UI/community/export).
+    public_voice_id: Mapped[str] = mapped_column(
+        String(32), unique=True, index=True, default=generate_public_voice_id
+    )
+    owner_id: Mapped[str] = mapped_column(
+        String(36), index=True, default=lambda: settings.LOCAL_OWNER_ID
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    language_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     generation_defaults: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Explicit tags + derived (read-only) characteristics snapshot.
+    preset_tags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    characteristics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Visibility flags — schema only this cycle; Community/Publish UIs stay disabled.
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_community_voice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_preset_voice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

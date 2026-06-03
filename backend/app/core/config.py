@@ -8,6 +8,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "OmniVoice Platform"
     DEBUG: bool = False
 
+    # Single implicit local owner for the self-hosted Community Edition. The schema is
+    # SaaS-ready (every resource carries owner_id), but no authentication exists yet —
+    # all resources belong to this seeded system user. Real auth can later add user
+    # rows + a current_user dependency without a schema redesign.
+    LOCAL_OWNER_ID: str = "00000000-0000-0000-0000-000000000001"
+    LOCAL_OWNER_HANDLE: str = "local"
+    LOCAL_OWNER_DISPLAY_NAME: str = "Local User"
+
     DATABASE_URL: str = "sqlite+aiosqlite:////data/omnivoice.db"
 
     OMNIVOICE_MODEL: str = "k2-fsa/OmniVoice"

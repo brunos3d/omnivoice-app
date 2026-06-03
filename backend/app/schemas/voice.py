@@ -1,6 +1,26 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
+
+# Lifecycle status of a voice. Stored as a string column; constrained here.
+VoiceStatus = Literal["ready", "archived", "processing", "failed"]
+
+
+class VoiceCharacteristics(BaseModel):
+    """Derived, read-only snapshot of a voice's traits.
+
+    Generated from ``voice_design`` (the source of truth) + preset tags by
+    ``services.voice_metadata.derive_characteristics``. Never edited by hand;
+    filtering / search / pagination read this instead of recomputing.
+    """
+
+    gender: Optional[str] = None
+    age_group: Optional[str] = None
+    accent: Optional[str] = None
+    pitch: Optional[str] = None
+    style_tags: list[str] = []
+    speaking_speed: Optional[str] = None
+    emotional_range: Optional[str] = None
 
 
 class VoiceGenerationDefaults(BaseModel):
@@ -20,27 +40,43 @@ class VoiceProfileCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     language: Optional[str] = None
+    language_code: Optional[str] = Field(None, max_length=16)
     transcript: Optional[str] = None
+    preset_tags: Optional[list[str]] = None
 
 
 class VoiceProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     language: Optional[str] = None
+    language_code: Optional[str] = Field(None, max_length=16)
     transcript: Optional[str] = None
+    preset_tags: Optional[list[str]] = None
 
 
 class VoiceProfileResponse(BaseModel):
     id: str
+    public_voice_id: str
+    owner_id: str
     name: str
     description: Optional[str]
     language: Optional[str]
+    language_code: Optional[str] = None
     transcript: Optional[str]
     audio_filename: str
     audio_duration: Optional[float]
     meta: Optional[dict[str, Any]]
     generation_defaults: Optional[VoiceGenerationDefaults] = None
+    preset_tags: Optional[list[str]] = None
+    characteristics: Optional[dict[str, Any]] = None
+    is_public: bool = False
+    is_community_voice: bool = False
+    is_preset_voice: bool = False
+    is_favorite: bool = False
+    status: VoiceStatus = "ready"
+    usage_count: int = 0
     created_at: datetime
+    updated_at: Optional[datetime] = None
     last_used_at: Optional[datetime]
 
     model_config = {"from_attributes": True}

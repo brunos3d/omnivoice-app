@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.db import VoiceProfile
 from app.schemas.voice import VoiceGenerationDefaults, VoiceProfileResponse
+from app.services.voice_metadata import characteristics_from_defaults
 from app.services.audio_preprocessing_service import (
     AudioPreprocessingError,
     process_audio,
@@ -56,6 +57,19 @@ def _parse_generation_defaults(raw: Optional[str]) -> Optional[dict]:
         return VoiceGenerationDefaults(**data).model_dump()
     except Exception:
         return None
+
+
+def _parse_preset_tags(raw: Optional[str]) -> Optional[list[str]]:
+    """Parse preset_tags from a JSON-encoded list (multipart form field)."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return [str(t) for t in data]
+    except Exception:
+        pass
+    return None
 
 
 async def _process_and_upload(
@@ -144,8 +158,10 @@ async def create_voice(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
+    language_code: Optional[str] = Form(None),
     transcript: Optional[str] = Form(None),
     generation_defaults: Optional[str] = Form(None),
+    preset_tags: Optional[str] = Form(None),
     file: UploadFile = File(...),
     crop_start: float = Form(0.0),
     crop_end: Optional[float] = Form(None),
@@ -168,16 +184,25 @@ async def create_voice(
         logger.exception("Unexpected error processing audio for new voice profile")
         raise HTTPException(status_code=500, detail=f"Audio processing failed: {exc}")
 
+    parsed_defaults = _parse_generation_defaults(generation_defaults)
+    parsed_tags = _parse_preset_tags(preset_tags)
+
     profile = VoiceProfile(
         id=profile_id,
         name=name,
         description=description,
         language=language,
+        language_code=language_code,
         transcript=transcript,
         audio_filename="reference.wav",
         audio_duration=meta["duration"],
         meta=meta,
-        generation_defaults=_parse_generation_defaults(generation_defaults),
+        generation_defaults=parsed_defaults,
+        preset_tags=parsed_tags,
+        characteristics=characteristics_from_defaults(
+            parsed_defaults, preset_tags=parsed_tags, language=language
+        ),
+        owner_id=settings.LOCAL_OWNER_ID,
     )
     db.add(profile)
     await db.commit()
@@ -196,8 +221,10 @@ async def update_voice(
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
+    language_code: Optional[str] = Form(None),
     transcript: Optional[str] = Form(None),
     generation_defaults: Optional[str] = Form(None),
+    preset_tags: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     crop_start: float = Form(0.0),
     crop_end: Optional[float] = Form(None),
@@ -213,12 +240,24 @@ async def update_voice(
         profile.description = description
     if language is not None:
         profile.language = language
+    if language_code is not None:
+        profile.language_code = language_code
     if transcript is not None:
         profile.transcript = transcript
+    if preset_tags is not None:
+        profile.preset_tags = _parse_preset_tags(preset_tags)
 
     # Update generation_defaults when explicitly provided (empty string clears it)
     if generation_defaults is not None:
         profile.generation_defaults = _parse_generation_defaults(generation_defaults) if generation_defaults else None
+
+    # voice_design or preset_tags may have changed — regenerate the read-only snapshot.
+    if generation_defaults is not None or preset_tags is not None:
+        profile.characteristics = characteristics_from_defaults(
+            profile.generation_defaults,
+            preset_tags=profile.preset_tags,
+            language=profile.language,
+        )
 
     if file is not None and file.filename:
         try:
@@ -261,6 +300,12 @@ async def save_voice_defaults(
     if not profile:
         raise HTTPException(status_code=404, detail="Voice profile not found")
     profile.generation_defaults = defaults.model_dump()
+    # voice_design changed → regenerate the derived characteristics snapshot.
+    profile.characteristics = characteristics_from_defaults(
+        profile.generation_defaults,
+        preset_tags=profile.preset_tags,
+        language=profile.language,
+    )
     await db.commit()
     await db.refresh(profile)
     logger.info("Saved generation defaults for voice profile %s", profile_id)

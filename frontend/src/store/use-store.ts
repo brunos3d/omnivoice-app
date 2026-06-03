@@ -56,6 +56,10 @@ interface AppState {
   // null means no profile is selected (or the profile has no saved defaults).
   activeVoiceDefaults: VoiceGenerationDefaults | null
   voices: VoiceProfile[]
+  // The TTS language (OmniVoice id, or null = Auto). Lifted into the store so that
+  // selecting a voice can auto-apply its language (Sub-project E), consistent with
+  // how the API applies a voice's language at generation time.
+  ttsLanguage: string | null
   // Persistent bottom-player audio + the text bound to the TTS canvas (lifted
   // into the store so History "Regenerate" can prefill it across routes).
   currentAudio: CurrentAudio | null
@@ -67,6 +71,7 @@ interface AppState {
   outputFormat: "wav" | "mp3" | "ogg"
 
   setSelectedProfile: (profile: VoiceProfile | null) => void
+  setTtsLanguage: (language: string | null) => void
   setCurrentAudio: (audio: CurrentAudio | null) => void
   setTtsText: (text: string) => void
   setLastRequest: (req: GenerationRequest | null) => void
@@ -100,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   useGpu: SYSTEM_DEFAULTS.use_gpu,
   activeVoiceDefaults: null,
   voices: [],
+  ttsLanguage: null,
   currentAudio: null,
   ttsText: "",
   lastRequest: null,
@@ -138,6 +144,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         generationSettings: defaultsToSettings(defaults),
         voiceDesign: defaults.voice_design ?? [],
         useGpu: defaults.use_gpu,
+        // Auto-apply the voice's language (keep current when the voice has none).
+        ttsLanguage: profile.language_code ?? get().ttsLanguage,
       })
     } else {
       // Profile exists but has no saved defaults — fall back to system defaults.
@@ -149,9 +157,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
         voiceDesign: SYSTEM_DEFAULTS.voice_design,
         useGpu: SYSTEM_DEFAULTS.use_gpu,
+        // Auto-apply the voice's language (keep current when the voice has none).
+        ttsLanguage: profile.language_code ?? get().ttsLanguage,
       })
     }
   },
+
+  setTtsLanguage: (language) => set({ ttsLanguage: language }),
 
   setUploadedAudio: (audio) => set({ uploadedAudio: audio, selectedProfile: null }),
   setRecordedAudio: (audio) => set({ recordedAudio: audio, selectedProfile: null }),

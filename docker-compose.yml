@@ -3,6 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    profiles: ["production", "dev"]
     ports:
       - "8000:8000"
     volumes:
@@ -40,6 +41,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    profiles: ["production", "dev"]
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -61,6 +63,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    profiles: ["production"]
     ports:
       - "3000:3000"
     environment:

@@ -32,6 +32,8 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
     "supports_multilingual": CapabilitySpec("supports_multilingual", "Multilingual", "Multiple languages."),
     "supports_reference_audio": CapabilitySpec("supports_reference_audio", "Reference audio", "Accepts a reference audio clip."),
     "supports_batch_generation": CapabilitySpec("supports_batch_generation", "Batch generation", "Generate multiple outputs in one request."),
+    "supports_speaker_embeddings": CapabilitySpec("supports_speaker_embeddings", "Speaker embeddings", "Represents voices as speaker embeddings."),
+    "supports_custom_training": CapabilitySpec("supports_custom_training", "Custom training", "Can train or fine-tune custom voice assets."),
     "supports_api": CapabilitySpec("supports_api", "Public API", "Usable through the public API."),
 }
 

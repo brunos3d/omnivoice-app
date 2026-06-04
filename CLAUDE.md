@@ -4,6 +4,46 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project direction — PeakVox (READ FIRST)
+
+This project is evolving from a single-model OmniVoice frontend into **PeakVox**, a
+model-agnostic **Universal Voice Runtime** + voice marketplace (think "OpenRouter for Voice +
+Ollama for Voice"). The full architecture lives in **`docs/architecture/`** — **read
+[`00-VISION.md`](docs/architecture/00-VISION.md) first**, then the
+[`09-ROADMAP.md`](docs/architecture/09-ROADMAP.md) and the ADRs.
+
+> **The code on `main` is the pre-PeakVox baseline.** Below ("Architecture") describes what is
+> *currently implemented*. The PeakVox concepts (Voice/VoiceVariant split, Runtime Layer,
+> marketplace, etc.) are **planned** in the architecture suite and phase plans
+> (`docs/superpowers/plans/2026-06-03-peakvox-phase-{1,2,3}-*.md`), not yet built. Don't assume
+> a PeakVox concept exists in code unless you've verified it.
+
+### Binding architectural rules (do not violate)
+
+These are normative; new code and designs must uphold them (see the ADRs):
+
+1. **PeakVox is model-agnostic.** OmniVoice is just the **first model provider**. Never
+   architect around a specific model. Adding a model must not change public APIs, Voice IDs,
+   the Voice Library, marketplace, or developer integrations.
+2. **Voice ≠ VoiceVariant ≠ Model** — three separate concepts ([ADR-0004](docs/architecture/adrs/0004-voice-variant-model-separation.md)).
+   A **Voice** is a portable PeakVox asset (its `public_voice_id` is a **permanent** public
+   contract). A **VoiceVariant** is a model-specific realization (embeddings/checkpoints/refs) —
+   replaceable, **never exposed on the public API**. A **Model** is an interchangeable engine.
+3. **The Runtime joins them** — `Voice + Model → VoiceVariant → inference`
+   ([10-RUNTIME_ARCHITECTURE](docs/architecture/10-RUNTIME_ARCHITECTURE.md)). Models integrate
+   via the `ModelAdapter` contract; nothing above that line imports a model implementation.
+4. **Capabilities are declared, not inferred** ([ADR-0003](docs/architecture/adrs/0003-model-capability-contract.md)).
+   Read `ModelCapabilities`; never branch on model id or model name to detect a feature.
+5. **CE = infrastructure layer, Cloud = ecosystem layer.** Marketplace, creators, royalties,
+   credits, payouts, and multi-tenant auth are **Cloud-only** but **schema-ready in CE** behind
+   feature flags + deployment boundaries — never a forked schema. Auth/billing are swappable
+   interfaces (Clerk/Stripe are the first adapters), like the existing identity seam.
+6. **Migrations are additive + idempotent** (`app/core/migrations.py`, the SQLite-safe runner —
+   **not** Alembic in CE). Add nullable columns + backfill; never destructive changes. Alembic
+   arrives only at the Cloud Postgres cut-over.
+7. **No pgvector** unless a real semantic voice-similarity feature justifies it (own ADR).
+   Voice search/filter runs on the derived structured `characteristics`.
+
 ## Commands
 
 ### Docker (primary workflow)
@@ -45,7 +85,10 @@ Two services: a **FastAPI backend** (`backend/`) and a **Next.js 15 frontend** (
 | `main.py`                       | App entrypoint — registers middleware, mounts `/audio` static files, fires model load as background task on startup                                           |
 | `core/config.py`                | Pydantic settings (env-driven); all paths derive from `DATA_DIR`                                                                                              |
 | `core/database.py`              | Async SQLAlchemy + SQLite via `aiosqlite`; `init_db()` creates tables on startup                                                                              |
-| `models/db.py`                  | ORM models: `VoiceProfile`, `GenerationJob`                                                                                                                   |
+| `models/db.py`                  | ORM models: `User`, `ApiKey`, `VoiceProfile`, `Model`, `GenerationJob` (PeakVox Phase 3 splits `VoiceProfile` → `Voice` + `VoiceVariant`)                      |
+| `models/registry_types.py`      | Torch-free `ModelDescriptor` / `ModelCapabilities` (the model registry contract)                                                                              |
+| `services/model_registry.py` + `model_catalog.py` + `model_providers/` | Persisted, multi-model registry: catalog seeding, runtime load/offload, provider (adapter) plugins. `Model` is already a first-class entity ([ADR-0002](docs/architecture/adrs/0002-model-as-first-class-entity.md)) |
+| `core/migrations.py`            | Idempotent, SQLite-safe startup migration runner (additive only; **not** Alembic)                                                                            |
 | `schemas/`                      | Pydantic request/response schemas                                                                                                                             |
 | `api/generation.py`             | `POST /generate` creates a `GenerationJob` row and fires `_process_job()` as an `asyncio.create_task`; job status is polled via `GET /jobs/{id}`              |
 | `api/voices.py`                 | CRUD for voice profiles; audio stored at `/data/voices/{id}/voice.wav`                                                                                        |

@@ -19,6 +19,24 @@ a **first-class architectural component**, not an implementation detail.
 
 ---
 
+### Frontend→Backend generation contract
+
+The generation POST body is the **frontend→backend contract** and must include every field
+the backend needs to route correctly:
+
+```
+POST /generate  { text, model_id?, voice_profile_id?, … }
+```
+
+- `model_id`: **MUST** be included when the user has explicitly selected a model. When
+  `null`/absent the backend falls back to the platform default. The frontend MUST read the
+  selected model from the UI state (e.g. Zustand `selectedModelId`) and pass it as `model_id`.
+  Forgetting this field causes the backend to validate tags/capabilities against the wrong
+  model — the default instead of the user's selection.
+
+This contract is separate from the backend capability validation (which is always correct per
+the model that arrives). The integration point is the frontend → backend payload.
+
 ## 1. Why the runtime is the product
 
 Applications, the public API, the marketplace, and developer SDKs all depend on **one stable
@@ -170,7 +188,7 @@ ModelAdapter
 
 | Adapter | Backs | Notable capabilities | Variant artifacts |
 |---|---|---|---|
-| **OmniVoiceAdapter** | OmniVoice Base/Distilled | tts, voice_cloning, emotion_tags, voice_design, multilingual, reference_audio | reference sample + transcript + voice_design params |
+| **OmniVoiceAdapter** | OmniVoice Base | tts, voice_cloning, emotion_tags, voice_design, multilingual, reference_audio | reference sample + transcript + voice_design params |
 | **OmniVoiceSingingAdapter** | OmniVoice Singing | + singing, emotion_tags (rich) | reference sample + singing params |
 | **FishAudioAdapter** | Fish Audio / S2 | tts, voice_cloning, speaker_embeddings, (speech-to-speech) | speaker embedding / checkpoint |
 | **KokoroAdapter** | Kokoro | tts, multilingual, (preset voices) | preset/voice pack reference |

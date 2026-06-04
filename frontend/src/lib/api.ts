@@ -38,7 +38,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new ApiError(res.status, body.detail || "Request failed")
+    const message =
+      typeof body.detail === "object" && body.detail !== null
+        ? body.detail.message ?? JSON.stringify(body.detail)
+        : body.detail ?? "Request failed"
+    throw new ApiError(res.status, message)
   }
   return res.json()
 }
@@ -187,6 +191,26 @@ export async function fetchModelTags(id: string): Promise<{ model_id: string; ta
 
 export async function fetchModelStatus(): Promise<ModelStatus> {
   return request<ModelStatus>("/models/status")
+}
+
+export async function installModel(id: string): Promise<{ id: string; status: Model["status"] }> {
+  return request<{ id: string; status: Model["status"] }>(`/models/${id}/install`, { method: "POST" })
+}
+
+export async function updateModel(id: string): Promise<{ id: string; status: Model["status"] }> {
+  return request<{ id: string; status: Model["status"] }>(`/models/${id}/update`, { method: "POST" })
+}
+
+export async function removeModel(id: string): Promise<{ id: string; removed: boolean }> {
+  return request<{ id: string; removed: boolean }>(`/models/${id}/remove`, { method: "POST" })
+}
+
+export async function activateModel(id: string): Promise<{ id: string; status: Model["status"] }> {
+  return request<{ id: string; status: Model["status"] }>(`/models/${id}/activate`, { method: "POST" })
+}
+
+export async function deactivateModel(id: string): Promise<{ id: string; status: Model["status"] }> {
+  return request<{ id: string; status: Model["status"] }>(`/models/${id}/deactivate`, { method: "POST" })
 }
 
 export async function fetchDeviceSettings(): Promise<{ use_gpu: boolean; cuda_available: boolean }> {

@@ -30,6 +30,7 @@ export function GenerationPanel() {
   const activeJobId = useAppStore((s) => s.activeJobId);
   const language = useAppStore((s) => s.ttsLanguage);
   const setLanguage = useAppStore((s) => s.setTtsLanguage);
+  const selectedModelId = useAppStore((s) => s.selectedModelId);
   const { data: model } = useModelStatus();
   const { activeModel } = useActiveModel();
   const generate = useSubmitGeneration();
@@ -52,6 +53,7 @@ export function GenerationPanel() {
     if (!canGenerate) return;
     generate.mutate({
       text: text.trim(),
+      model_id: selectedModelId,
       voice_profile_id: selectedProfile?.id ?? null,
       language: language,
       ref_text: selectedProfile?.transcript || null,

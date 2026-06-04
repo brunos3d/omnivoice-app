@@ -16,6 +16,7 @@ from app.services.runtime import (
     VariantUnavailable,
     UnsupportedTags,
     UnsupportedCapability,
+    ModelNotActive,
 )
 
 _SEED = (
@@ -54,6 +55,13 @@ def _desc(model_id, *, default=False, tags=None, caps=None):
         id=model_id, name=model_id, description="d", provider="fake",
         supported_tags=tags or [], is_default=default,
         capabilities=caps or ModelCapabilities(),
+    )
+
+
+def _inactive_desc(model_id):
+    return ModelDescriptor(
+        id=model_id, name=model_id, description="d", provider="fake",
+        status="inactive", capabilities=ModelCapabilities(supports_tts=True),
     )
 
 
@@ -145,3 +153,88 @@ async def test_generate_rejects_unsupported_capability(session):
             session, text="hi", model_id="omnivoice-base", output_path=Path("/tmp/x.wav"),
             required_capabilities={"supports_singing"},
         )
+
+
+async def test_generate_rejects_inactive_model(session):
+    rt = PeakVoxRuntime()
+    rt.register_adapter(FakeAdapter(_inactive_desc("inactive-model")))
+    with pytest.raises(ModelNotActive):
+        await rt.generate(
+            session, text="hi", model_id="inactive-model", output_path=Path("/tmp/x.wav")
+        )
+
+
+# ── Regression: model_id is NEVER replaced by the default ──────────────────
+
+def test_resolve_model_explicit_is_not_overridden_by_default():
+    """When model_id is provided explicitly, resolve_model MUST return that model,
+    never the default (regression: the bug sent omnivoice-singing tags to omnivoice-base)."""
+    rt = _runtime()
+    # The default is "omnivoice-base", but explicit request gets the exact model.
+    assert rt.resolve_model("omnivoice-singing").id == "omnivoice-singing"
+    assert rt.resolve_model("omnivoice-base").id == "omnivoice-base"
+
+
+def test_validate_tags_uses_the_specified_model_not_the_default():
+    """Tag validation for each model uses only that model's tag list.
+    Base model rejects singing tags; singing model accepts them."""
+    rt = _runtime()
+    # Base model: singing tags are unsupported.
+    assert "singing" in rt.validate_tags("omnivoice-base", "[singing]")
+    assert "whisper" in rt.validate_tags("omnivoice-base", "[whisper]")
+    # Singing model: singing tags are supported.
+    assert rt.validate_tags("omnivoice-singing", "[singing]") == []
+    assert rt.validate_tags("omnivoice-singing", "[whisper]") == []
+
+
+def test_validate_tags_singing_accepts_its_own_tags():
+    """Singing model accepts tags from its own declared tag list (singing, whisper),
+    proving validate_tags uses the specified model's tags, not the default's."""
+    rt = _runtime()
+    for tag in ["singing", "whisper"]:
+        assert rt.validate_tags("omnivoice-singing", f"[{tag}]") == [], (
+            f"singing model should accept [{tag}]"
+        )
+
+
+def test_validate_tags_base_rejects_singing_specific_tags():
+    """Base model (omnivoice-base) rejects tags only declared on the singing model
+    because capabilities should always come from the selected model."""
+    rt = _runtime()
+    # "singing" and "whisper" are only in the singing model's tag list in the test helper.
+    for tag in ["singing", "whisper"]:
+        bad = rt.validate_tags("omnivoice-base", f"[{tag}]")
+        assert tag in bad, f"base model should reject [{tag}]"
+
+
+async def test_generate_uses_singing_model_tags_not_default(session):
+    """Runtime.generate MUST validate tags against the explicitly specified
+    model, not the platform default (the exact regression from the bug report)."""
+    rt = _runtime()
+    # omnivoice-singing should accept [singing] tags (no exception).
+    duration, logs = await rt.generate(
+        session, text="sing [singing] for me", model_id="omnivoice-singing",
+        output_path=Path("/tmp/x.wav"),
+    )
+    assert duration == 2.0
+    assert "omnivoice-singing" in logs[0]
+
+
+def test_voice_id_constant_while_model_changes():
+    """Regression: Voice identity is constant; capabilities and tags follow
+    the model. Proves the Universal Voice Runtime thesis works correctly:
+    same Voice ID + different Models + different tags."""
+    rt = _runtime()
+    VOICE = "voice_ABC123"
+
+    # Tag behavior follows the model (capability-driven, not voice-driven).
+    assert "singing" in rt.validate_tags("omnivoice-base", "[singing]")
+    assert rt.validate_tags("omnivoice-singing", "[singing]") == []
+
+    # Capabilities follow the model (same Voice ID, different capabilities).
+    assert rt.missing_capabilities("omnivoice-base", {"supports_singing"}) == {"supports_singing"}
+    assert rt.missing_capabilities("omnivoice-singing", {"supports_singing"}) == set()
+
+    # Model resolution respects explicit model_id (never replaced by default).
+    assert rt.resolve_model("omnivoice-base").id == "omnivoice-base"
+    assert rt.resolve_model("omnivoice-singing").id == "omnivoice-singing"

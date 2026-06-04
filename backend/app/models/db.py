@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Text, DateTime, Float, JSON, Boolean, Integer
+from sqlalchemy import String, Text, DateTime, Float, JSON, Boolean, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config import settings
@@ -147,6 +147,66 @@ class GenerationJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Voice(Base):
+    """Model-agnostic voice identity — the stable, ownable economic asset (ADR-0001).
+
+    Split out of the legacy VoiceProfile: identity + metadata live here; per-model artifacts
+    live in VoiceVariant. ``public_voice_id`` is carried over from the profile unchanged.
+    """
+
+    __tablename__ = "voices"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    public_voice_id: Mapped[str] = mapped_column(
+        String(32), unique=True, index=True, default=generate_public_voice_id
+    )
+    creator_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), index=True, default=lambda: settings.LOCAL_OWNER_ID
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    language_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    preview_audio: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    characteristics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    royalty_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Cloud-only semantics
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_community_voice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_preset_voice: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class VoiceVariant(Base):
+    """A Voice realized for one Model — the artifacts that engine needs to render the identity.
+
+    Unique per (voice_id, model_id). Derivable: if its model updates, mark ``stale`` and
+    rebuild from the Voice's canonical sources without changing public_voice_id.
+    """
+
+    __tablename__ = "voice_variants"
+    __table_args__ = (UniqueConstraint("voice_id", "model_id", name="uq_variant_voice_model"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    voice_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # reference_sample | embedding | checkpoint | adapter | finetune | metadata
+    artifact_type: Mapped[str] = mapped_column(String(32), nullable=False, default="reference_sample")
+    artifacts: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # storage keys
+    params: Mapped[dict | None] = mapped_column(JSON, nullable=True)     # model-specific config
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="cloned")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 # ---------------------------------------------------------------------------

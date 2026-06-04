@@ -9,7 +9,12 @@ against the upstream OmniVoice releases before those models are enabled (see pla
 until verified they ship with ``status="disabled"``.
 """
 
-from app.models.registry_types import ModelCapabilities, ModelDescriptor
+from app.models.registry_types import (
+    ModelCapabilities,
+    ModelDescriptor,
+    ModelLicense,
+    ModelRequirements,
+)
 
 # Tag sets ---------------------------------------------------------------------
 _BASE_TAGS = [
@@ -73,6 +78,16 @@ BUILTIN_MODELS: list[ModelDescriptor] = [
             supports_streaming=False,
             supports_api=True,
         ),
+        requirements=ModelRequirements(gpu_required=False, runtime="torch"),
+        license=ModelLicense(
+            code="apache-2.0",
+            commercial_use=True,
+            url="https://github.com/k2-fsa/OmniVoice",
+        ),
+        provider_metadata={
+            "author": "k2-fsa",
+            "homepage": "https://github.com/k2-fsa/OmniVoice",
+        },
         status="available",
         is_default=True,
     ),

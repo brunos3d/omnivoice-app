@@ -59,6 +59,9 @@ async def run_migrations(conn: AsyncConnection) -> None:
     # 2b. Additively add new generation_jobs columns (multi-model support).
     await _add_missing_job_columns(conn)
 
+    # 2c. Additively add new models columns (first-class model metadata).
+    await _add_missing_model_columns(conn)
+
     # 3. Seed the single implicit local owner.
     await _seed_local_owner(conn)
 
@@ -106,6 +109,27 @@ async def _add_missing_job_columns(conn: AsyncConnection) -> None:
             logger.debug("Job column {} already present, skipping", column)
 
 
+# New models columns (Phase 2 — first-class model metadata). Additive, NULL-default.
+_NEW_MODEL_COLUMNS: list[tuple[str, str]] = [
+    ("requirements", "ALTER TABLE models ADD COLUMN requirements JSON"),
+    ("license", "ALTER TABLE models ADD COLUMN license JSON"),
+    ("provider_metadata", "ALTER TABLE models ADD COLUMN provider_metadata JSON"),
+    ("deprecated_at", "ALTER TABLE models ADD COLUMN deprecated_at DATETIME"),
+]
+
+
+async def _add_missing_model_columns(conn: AsyncConnection) -> None:
+    res = await conn.execute(text("PRAGMA table_info(models)"))
+    existing = {row[1] for row in res.fetchall()}
+    for column, ddl in _NEW_MODEL_COLUMNS:
+        if column in existing:
+            continue
+        try:
+            await conn.execute(text(ddl))
+        except Exception:  # pragma: no cover - duplicate column on a racing run
+            logger.debug("Model column {} already present, skipping", column)
+
+
 async def _seed_builtin_models(conn: AsyncConnection) -> None:
     """Idempotently upsert built-in model rows. Built-in fields are refreshed on every run so
     catalog edits (new tags, status changes) propagate; user/community rows (is_builtin=0) are
@@ -119,11 +143,13 @@ async def _seed_builtin_models(conn: AsyncConnection) -> None:
                     id, name, description, version, provider, repo_id, model_path,
                     supported_languages, supported_tags, supported_voice_design,
                     capabilities, status, is_default, is_builtin, editions,
+                    requirements, license, provider_metadata,
                     owner_id, created_at, updated_at
                 ) VALUES (
                     :id, :name, :description, :version, :provider, :repo_id, :model_path,
                     :supported_languages, :supported_tags, :supported_voice_design,
                     :capabilities, :status, :is_default, 1, :editions,
+                    :requirements, :license, :provider_metadata,
                     NULL, :now, :now
                 )
                 ON CONFLICT(id) DO UPDATE SET
@@ -140,6 +166,9 @@ async def _seed_builtin_models(conn: AsyncConnection) -> None:
                     status=excluded.status,
                     is_default=excluded.is_default,
                     editions=excluded.editions,
+                    requirements=excluded.requirements,
+                    license=excluded.license,
+                    provider_metadata=excluded.provider_metadata,
                     updated_at=excluded.updated_at
                 WHERE models.is_builtin = 1
                 """
@@ -159,6 +188,9 @@ async def _seed_builtin_models(conn: AsyncConnection) -> None:
                 "status": m.status,
                 "is_default": 1 if m.is_default else 0,
                 "editions": json.dumps(m.editions),
+                "requirements": json.dumps(m.requirements.model_dump()),
+                "license": json.dumps(m.license.model_dump()) if m.license else None,
+                "provider_metadata": json.dumps(m.provider_metadata),
                 "now": now,
             },
         )

@@ -8,6 +8,11 @@ contracts.
 > This roadmap is the bridge from architecture to implementation tasks. Tasks are generated
 > **per phase**, after this plan is approved. Legend: 🟩 largely exists → harden · 🟨 partial ·
 > 🟥 new.
+>
+> The **Runtime Layer** is cross-cutting, not a single phase — its concerns map across Phases 2
+> (adapter + capability contract), 3 (variant resolution), 8 (distributed workers / VRAM
+> scheduling), and 10 (autoscaling). See the mapping in
+> [Runtime §10](10-RUNTIME_ARCHITECTURE.md).
 
 | # | Phase | State |
 |---|---|---|
@@ -49,8 +54,10 @@ later phase is wiring, not redesign.
 - **Database:** add `models.requirements`, `license`, `provider_metadata`, `deprecated_at`;
   establish the version-row rule (consider `model_versions` if needed).
 - **Backend:** model lifecycle (`discover/install/activate/deactivate/update/deprecate`); HF
-  integration (manifest fetch, weights download into the model cache); capability metadata
-  validation; provider plugin docs (base already exists).
+  integration (manifest fetch, weights download into the model cache); the **Model Capability
+  Contract** (the frozen, versioned capability superset + `get_capabilities()` on the adapter,
+  [ADR-0003](adrs/0003-model-capability-contract.md)); harden the `ModelAdapter` contract
+  ([Runtime §6](10-RUNTIME_ARCHITECTURE.md); provider base already exists).
 - **Frontend:** model manager UI (install from HF, activate/deactivate, version, capabilities,
   requirements); already-present ModelSelector reads richer metadata.
 - **API:** extend `GET /v1/models` with capabilities/requirements/license; admin lifecycle

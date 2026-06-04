@@ -64,7 +64,9 @@ not a domain change. See [Migration §Auth](08-MIGRATION_ARCHITECTURE.md).
 
 The current in-process, single-GPU, offload-after-use service becomes a **horizontally scaled
 worker pool behind a queue** — the job-based pipeline already models async generation, so this
-is a deployment change, not a redesign.
+is a deployment change, not a redesign. A Cloud worker runs the **same
+[Runtime](10-RUNTIME_ARCHITECTURE.md) + adapters** as Community Edition — there is no separate
+Cloud inference codebase; only the execution substrate differs ([Runtime §9.2](10-RUNTIME_ARCHITECTURE.md)).
 
 - **Queue:** API enqueues generation jobs; workers consume. Fast paths may run sync.
 - **Model loading:** workers use the **same model registry + providers** as CE; models load on

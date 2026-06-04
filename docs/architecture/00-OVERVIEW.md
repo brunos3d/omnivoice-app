@@ -8,6 +8,10 @@ platform.
 > This is the index for the PeakVox architecture suite. Each linked document owns one
 > concern. Decisions that are expensive to reverse are captured as ADRs under
 > [`adrs/`](adrs/).
+>
+> **Read [00 — Vision](00-VISION.md) first** — it is the north star every document and future
+> decision must stay aligned with. PeakVox is a **Universal Voice Runtime**, not a model
+> frontend.
 
 ---
 
@@ -24,7 +28,9 @@ and future open models). The product is the platform that sits above all of them
 
 ## 2. The one decision everything hangs off
 
-PeakVox separates three concepts that today are fused inside `VoiceProfile`:
+PeakVox treats three concepts as **completely separate** (today they are fused inside
+`VoiceProfile`). They are related but never the same thing — see
+[ADR-0004](adrs/0004-voice-variant-model-separation.md) for the binding rule:
 
 ```
 MODEL ............ an inference engine            (a way to synthesise speech)
@@ -42,8 +48,10 @@ A caller references a **Voice** and a **Model**; the platform resolves the corre
 **VoiceVariant** (and regenerates it through the onboarding pipeline if it does not yet
 exist). The contract stays stable even when the underlying model changes. This split is the
 foundation for multi-model support, the marketplace, the creator economy, royalties, and
-cloud scale. See [ADR-0001](adrs/0001-voice-variant-split.md) and
-[Domain Architecture](02-DOMAIN_ARCHITECTURE.md).
+cloud scale. The component that joins the three at request time — resolving
+`Voice + Model → VoiceVariant → inference` — is the [Runtime](10-RUNTIME_ARCHITECTURE.md). See
+[ADR-0001](adrs/0001-voice-variant-split.md), [ADR-0004](adrs/0004-voice-variant-model-separation.md),
+and [Domain Architecture](02-DOMAIN_ARCHITECTURE.md).
 
 ## 3. Editions: infrastructure vs ecosystem
 
@@ -70,6 +78,7 @@ genuinely useful on its own; Cloud adds the ecosystem. See
 
 | Doc | Owns |
 |---|---|
+| [00 — Vision](00-VISION.md) | **North star.** PeakVox as a Universal Voice Runtime; the binding principles all decisions follow |
 | [01 — Product Architecture](01-PRODUCT_ARCHITECTURE.md) | Editions, personas, capability matrix, feature flags, deployment boundaries |
 | [02 — Domain Architecture](02-DOMAIN_ARCHITECTURE.md) | Bounded contexts; Model / Voice / VoiceVariant / Creator / Credits / Marketplace |
 | [03 — Data Architecture](03-DATA_ARCHITECTURE.md) | Entities, schema-ready tables, SQLite→Postgres, pgvector verdict |
@@ -79,7 +88,8 @@ genuinely useful on its own; Cloud adds the ecosystem. See
 | [07 — Monetization Architecture](07-MONETIZATION_ARCHITECTURE.md) | Credits ledger, revenue split, Stripe Connect payouts, royalty accounting |
 | [08 — Migration Architecture](08-MIGRATION_ARCHITECTURE.md) | Rename, VoiceProfile→Voice+Variant split, edition flags, vendor seams, DB migration |
 | [09 — Roadmap](09-ROADMAP.md) | The 10 implementation phases, each with goals / DB / backend / frontend / API / risks / migration / order |
-| [adrs/](adrs/) | Architecture Decision Records for expensive-to-reverse choices |
+| [10 — Runtime Architecture](10-RUNTIME_ARCHITECTURE.md) | **The core differentiator.** The Universal Voice Runtime: resolution, routing, adapters, GPU/VRAM, lifecycle, local + distributed execution, model classification |
+| [adrs/](adrs/) | Architecture Decision Records: [0001](adrs/0001-voice-variant-split.md) Voice/Variant split · [0002](adrs/0002-model-as-first-class-entity.md) Model first-class · [0003](adrs/0003-model-capability-contract.md) Capability contract · [0004](adrs/0004-voice-variant-model-separation.md) Voice/Variant/Model separation |
 
 ## 5. Relationship to existing docs
 

@@ -12,6 +12,8 @@ captures one decision: its context, the options weighed, what was chosen, and th
 |---|---|---|
 | [0001](0001-voice-variant-split.md) | Voice / VoiceVariant split as the core domain spine | Accepted |
 | [0002](0002-model-as-first-class-entity.md) | Model as a first-class persisted entity | Accepted |
+| [0003](0003-model-capability-contract.md) | Model Capability Contract | Accepted |
+| [0004](0004-voice-variant-model-separation.md) | Voice, VoiceVariant, and Model are three separate concepts | Accepted |
 
 ## Conventions
 

@@ -11,14 +11,21 @@ at the wire level, key namespacing, auth/metering seams, and stability guarantee
 ## 1. Principles
 
 1. **The contract is `Voice` + `Model`, never artifacts.** Callers reference a stable
-   `public_voice_id` and a `model` id; the platform resolves the `VoiceVariant`. This is what
-   keeps the API stable when models or artifacts change.
-2. **Versioned from day one.** `/v1` is frozen; breaking changes ship under `/v2`. `/v1`
+   `public_voice_id` and a `model` id; the [Runtime](10-RUNTIME_ARCHITECTURE.md) resolves the
+   `VoiceVariant`. This is what keeps the API stable when models or artifacts change.
+2. **No model internals on the wire.** Embeddings, checkpoints, training/variant formats, and
+   model internals **never** appear in any `/v1` response — a binding rule
+   ([ADR-0004](adrs/0004-voice-variant-model-separation.md)). The public surface is
+   `public_voice_id` + model id only.
+3. **Versioned from day one.** `/v1` is frozen; breaking changes ship under `/v2`. `/v1`
    stays alive for existing SDKs.
-3. **One contract, two editions.** CE and Cloud expose the *same* endpoints. Cloud only
+4. **One contract, two editions.** CE and Cloud expose the *same* endpoints. Cloud only
    changes **what a key resolves to** (account/org + plan + quota) and adds metering —
    not the wire shape.
-4. **Stable, SDK-friendly responses.** `public_voice_id`, model ids, camelCase fields.
+5. **Stable, SDK-friendly responses.** `public_voice_id`, model ids, camelCase fields.
+6. **`model` may be a specific id, omitted (default), or `"auto"`** (future runtime routing) —
+   the same endpoint, unchanged client code. See [Vision §Future](00-VISION.md) and
+   [Runtime §7](10-RUNTIME_ARCHITECTURE.md).
 
 ## 2. Surface
 

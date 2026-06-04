@@ -36,6 +36,29 @@ Model; the platform resolves (or lazily produces) the Variant. See
 [ADR-0001](adrs/0001-voice-variant-split.md) for why this is the primary spine and not a
 side-table.
 
+### 1.1 Three separate concepts (binding rule)
+
+Voice, VoiceVariant, and Model are **three completely separate concepts** — related, but never
+the same thing. This separation is normative ([ADR-0004](adrs/0004-voice-variant-model-separation.md)):
+
+| Concept | Is | Owned by | Lifecycle |
+|---|---|---|---|
+| **Voice** | the public identity of a speaker (a PeakVox asset) | PeakVox / its creator | `public_voice_id` is **permanent** — survives model upgrades, replacement, variant regeneration, infra/cloud changes |
+| **VoiceVariant** | a model-specific *implementation* of a Voice (embeddings/checkpoints/refs) | the Voice (per Model) | **replaceable** — built, regenerated, evicted freely |
+| **Model** | an inference engine that *consumes* variants and generates output | a provider | install / upgrade / deprecate / replace / remove — **without touching Voice identity** |
+
+The **binding architectural rules** (enforced platform-wide):
+
+1. No public API exposes model-specific voice internals (embeddings/checkpoints/variant formats).
+2. No feature assumes a Voice belongs to a specific model.
+3. No marketplace feature is tied to a specific provider.
+4. The Voice ID is immutable and provider-independent.
+5. Variant artifacts are encapsulated — read only by the owning Model's adapter, via the Runtime.
+
+Only the [Runtime](10-RUNTIME_ARCHITECTURE.md) joins the three, resolving
+`Voice ID + Selected Model → VoiceVariant → Inference`. Capabilities belong to the **Model**,
+never the Voice ([ADR-0003](adrs/0003-model-capability-contract.md)).
+
 ## 2. Bounded contexts
 
 | Context | Core entities | Edition | Responsibility |

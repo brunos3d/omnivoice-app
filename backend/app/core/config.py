@@ -1,11 +1,13 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.features import Features
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    APP_NAME: str = "OmniVoice Platform"
+    APP_NAME: str = "PeakVox"
     DEBUG: bool = False
 
     # Deployment edition. "community" (default) is fully self-hosted and
@@ -45,6 +47,10 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://frontend:3000"]
+
+    @property
+    def features(self) -> Features:
+        return Features.for_edition(self.EDITION)
 
     def create_dirs(self) -> None:
         for d in [self.VOICES_DIR, self.UPLOADS_DIR, self.GENERATED_DIR, self.TMP_DIR]:

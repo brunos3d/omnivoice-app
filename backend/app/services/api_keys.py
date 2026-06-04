@@ -1,7 +1,8 @@
 """API key management for the public REST API (`/api/v1`).
 
-Keys are formatted ``ov_live_<random>``. The raw key is returned to the caller exactly
-once at creation; the database stores only a sha256 hash plus a short display prefix.
+New keys are formatted ``pv_live_<random>`` (PeakVox); pre-PeakVox ``ov_live_`` keys remain
+valid and are still verified (by hash, not prefix). The raw key is returned to the caller
+exactly once at creation; the database stores only a sha256 hash plus a short display prefix.
 Keys belong to the local owner today, but ``owner_id`` keeps this multi-tenant ready.
 """
 
@@ -16,7 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.db import ApiKey
 
-KEY_PREFIX = "ov_live_"
+KEY_PREFIX = "pv_live_"
+LEGACY_KEY_PREFIX = "ov_live_"  # pre-PeakVox keys remain valid (verified by hash)
 _SECRET_BYTES = 24  # → 48 hex chars after the prefix
 _DISPLAY_PREFIX_LEN = len(KEY_PREFIX) + 8
 
@@ -39,6 +41,13 @@ def extract_api_token(
 def hash_key(raw_key: str) -> str:
     """Return the sha256 hex digest stored for a raw key."""
     return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
+def is_known_key(raw_key: str) -> bool:
+    """True if the key carries a recognised prefix (current or legacy)."""
+    return bool(raw_key) and (
+        raw_key.startswith(KEY_PREFIX) or raw_key.startswith(LEGACY_KEY_PREFIX)
+    )
 
 
 def generate_api_key() -> tuple[str, str, str]:
@@ -88,7 +97,7 @@ async def revoke_api_key(db: AsyncSession, key_id: str) -> Optional[ApiKey]:
 
 async def verify_api_key(db: AsyncSession, raw_key: str) -> Optional[ApiKey]:
     """Return the active key matching ``raw_key`` (updating last_used_at), else None."""
-    if not raw_key or not raw_key.startswith(KEY_PREFIX):
+    if not is_known_key(raw_key):
         return None
     result = await db.execute(
         select(ApiKey).where(

@@ -7,7 +7,7 @@ in the heavy ML runtime. Providers (which import torch/omnivoice) are wired in s
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 ModelStatus = Literal["available", "loading", "loaded", "error", "disabled"]
 
@@ -82,3 +82,15 @@ class ModelDescriptor(BaseModel):
     is_default: bool = False
     is_builtin: bool = True
     editions: list[str] = Field(default_factory=lambda: ["community"])
+
+    # Edition availability, derived from ``editions`` (ADR-0005/0006). Serialized for the API/UI
+    # so the Models page can show per-edition availability without recomputing.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def available_in_ce(self) -> bool:
+        return "community" in self.editions
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def available_in_cloud(self) -> bool:
+        return "cloud" in self.editions

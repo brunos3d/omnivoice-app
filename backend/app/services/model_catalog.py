@@ -94,6 +94,7 @@ BUILTIN_MODELS: list[ModelDescriptor] = [
         },
         status="available",
         is_default=True,
+        editions=["community", "cloud"],
     ),
     ModelDescriptor(
         id="omnivoice-distilled",
@@ -120,6 +121,7 @@ BUILTIN_MODELS: list[ModelDescriptor] = [
         ),
         # Disabled until the upstream repo id/capabilities are confirmed (Risk R-7).
         status="disabled",
+        editions=["community", "cloud"],
     ),
     ModelDescriptor(
         id="omnivoice-singing",
@@ -146,6 +148,7 @@ BUILTIN_MODELS: list[ModelDescriptor] = [
         ),
         # Disabled until the upstream repo id/capabilities are confirmed (Risk R-7).
         status="disabled",
+        editions=["community", "cloud"],
     ),
     # First non-OmniVoice provider — validates the multi-provider Runtime (Phase 3.8).
     # CE-only: Fish Audio licensing requires commercial review, so it is available in the

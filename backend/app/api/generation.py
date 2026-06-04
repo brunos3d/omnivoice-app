@@ -14,10 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal, get_db
 from app.models.db import GenerationJob, VoiceProfile
 from app.schemas.job import GenerationRequest, JobResponse
-from app.services.model_registry import model_registry
-from app.services.omnivoice_service import omnivoice_service
+from app.services.runtime import (
+    runtime,
+    ModelNotRegistered,
+    ModelNotAvailableInEdition,
+)
 from app.services.storage import storage
-from app.services.tag_validation import find_unsupported_tags
 from app.services.voice_variant_repository import resolve_variant_stamp
 from app.api.voices import resolve_voice_audio_key
 from app.utils.streaming import stream_object
@@ -100,27 +102,34 @@ async def create_generation_job(
     request: GenerationRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    if not omnivoice_service.is_loaded:
+    # Everything routes through the PeakVox Runtime — the single generation entry point.
+    # The endpoint never touches a provider, adapter, or model-specific path directly.
+    if not await runtime.is_ready():
         raise HTTPException(status_code=503, detail="Model is still loading. Please try again.")
 
-    # Reject immediately if the GPU is already busy — prevents queue build-up
+    # Reject immediately if a generation is already in flight — prevents queue build-up
     # and gives the frontend an actionable signal rather than a silent wait.
-    if model_registry.is_generating or omnivoice_service.is_generating:
+    if runtime.is_generating:
         raise HTTPException(
             status_code=409,
             detail="A generation is already in progress. Please wait for it to complete.",
         )
 
-    # Resolve and validate the requested model (None = platform default).
+    # Resolve the requested model via the runtime (None = platform default).
     try:
-        model = model_registry.get_or_default(request.model_id)
-    except KeyError:
+        model = runtime.resolve_model(request.model_id)
+    except ModelNotRegistered:
         raise HTTPException(status_code=404, detail=f"Model '{request.model_id}' not found")
+    # Edition-scoped availability (ADR-0005): a CE-only model is not runnable in Cloud, etc.
+    try:
+        runtime.ensure_available(model.id)
+    except ModelNotAvailableInEdition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     if model.status == "disabled":
         raise HTTPException(status_code=409, detail=f"Model '{model.id}' is not available")
 
-    # Authoritative tag validation: reject inline tags the model does not support.
-    bad_tags = find_unsupported_tags(request.text, model.supported_tags)
+    # Authoritative tag validation via the runtime (capability/tag-driven, no name branching).
+    bad_tags = runtime.validate_tags(model.id, request.text)
     if bad_tags:
         raise HTTPException(
             status_code=422,
@@ -332,11 +341,14 @@ async def _process_job(job_id: str) -> None:
         if job_ref_key:
             local_ref = await storage.download_to_temp(job_ref_key, suffix=".wav")
 
-        # ── 3. Run inference via the registry (resolves/loads the model) ─────
-        duration, logs = await model_registry.generate(
-            job_model_id,
+        # ── 3. Run inference via the PeakVox Runtime (the single generation path) ─────
+        # Ad-hoc style: the reference audio is already staged locally and the model id is
+        # fixed on the job, so no Voice/DB resolution is needed here (db=None).
+        duration, logs = await runtime.generate(
+            None,
             text=job_text,
             output_path=local_output,
+            model_id=job_model_id,
             voice_profile_id=job_voice_id,
             ref_audio_path=str(local_ref) if local_ref else None,
             ref_text=job_ref_text,

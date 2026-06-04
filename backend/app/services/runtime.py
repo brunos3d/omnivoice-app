@@ -93,6 +93,25 @@ class PeakVoxRuntime:
     def list_adapters(self) -> list[ModelAdapter]:
         return list(self._adapters.values())
 
+    # --- Readiness / concurrency (so endpoints never poke providers directly) ------
+
+    @property
+    def is_generating(self) -> bool:
+        """True while a generation holds the single-flight lock (delegated to the registry)."""
+        from app.services.model_registry import model_registry
+
+        return model_registry.is_generating
+
+    async def is_ready(self) -> bool:
+        """True when the runtime can serve — the default model adapter reports healthy."""
+        if not self._adapters:
+            return False
+        try:
+            default = self.resolve_model(None)
+        except ModelNotRegistered:
+            return False
+        return await self.get_adapter(default.id).health_check()
+
     def resolve_model(self, model_id: Optional[str]) -> ModelDescriptor:
         """Resolve a model id to its descriptor; ``None`` → the default adapter's model."""
         if model_id is not None:

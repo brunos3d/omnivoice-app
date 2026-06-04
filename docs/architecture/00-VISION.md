@@ -175,6 +175,7 @@ the center of gravity.
 | Variants are buildable runtime assets | [ADR-0008](adrs/0008-voice-variant-build-lifecycle.md): Voice Variant Build Lifecycle |
 | Artifacts are versioned, retained, and auditable | [ADR-0009](adrs/0009-artifact-versioning-and-retention.md): Artifact Versioning and Retention |
 | A voice is a Source Asset, not a WAV; PeakVox provisions variants | [ADR-0010](adrs/0010-voice-source-assets-and-automatic-variant-provisioning.md): Voice Source Assets + Automatic Variant Provisioning |
+| A voice's origin is a Creation Source (asset / preset / marketplace / …), not always a WAV | [ADR-0011](adrs/0011-voice-creation-sources.md): Voice Creation Sources |
 | CE = local runtime, Cloud = ecosystem | [01 — Product](01-PRODUCT_ARCHITECTURE.md) |
 
 Start at [00 — Overview](00-OVERVIEW.md) for the document map.

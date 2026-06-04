@@ -76,6 +76,14 @@ versions per line become common) — never mutate artifacts under a pinned varia
 > clips), elevating today's OmniVoice-variant `artifacts.audio` out of a single provider's variant.
 > No migration is introduced by ADR-0010 (architecture only); current code keeps the reference clip
 > on the OmniVoice variant until the provisioning pipeline lands.
+>
+> **Voice Creation Source (future — [ADR-0011](adrs/0011-voice-creation-sources.md), schema deferred).**
+> The Source Asset is one *origin* among several. A Voice will carry a `creation_source` (an
+> open-taxonomy **type** — `SOURCE_ASSET` / `PRESET_VOICE` / `MARKETPLACE_VOICE` / `TRAINED_VOICE`
+> / `IMPORTED_VOICE` / `SYSTEM_VOICE` — plus a type-specific reference: a `voice_source_assets` row
+> for `SOURCE_ASSET`, a provider preset id for `PRESET_VOICE`, etc.). Origin is model-independent
+> and **orthogonal** to `voice_variants` (realization). The existing `is_preset_voice` flag is the
+> precursor hook. No migration in ADR-0011 (architecture only).
 
 ### 3.3 `voice_variants` (new — the realization layer)
 

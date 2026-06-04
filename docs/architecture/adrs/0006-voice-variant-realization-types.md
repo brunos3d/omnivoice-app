@@ -11,7 +11,9 @@
 > and the open-taxonomy rules** (and is **extended by**
 > [ADR-0010](0010-voice-source-assets-and-automatic-variant-provisioning.md): realizations build
 > from a first-class **Voice Source Asset** and variants are auto-provisioned across compatible
-> installed models) — only the status vocabulary is superseded.
+> installed models) — only the status vocabulary is superseded. Realization (how a model *stores*
+> a voice) is **orthogonal** to a Voice's *origin* ([ADR-0011](0011-voice-creation-sources.md)
+> Creation Source): e.g. a `PRESET_VOICE` origin is realized as the `voice_pack` realization here.
 
 ## Context
 

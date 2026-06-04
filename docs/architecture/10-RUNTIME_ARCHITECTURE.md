@@ -208,6 +208,13 @@ provisions transparently behind "Processing Voice…". Preset-only providers (`v
 Kokoro) are excluded from clone-based provisioning. *(Architecture accepted; implementation
 deferred — current CE code still builds lazily via `ensure_variant`.)*
 
+The provisioning *strategy* depends on the Voice's **Creation Source**
+([ADR-0011](adrs/0011-voice-creation-sources.md)): `SOURCE_ASSET` → auto-provision by building
+from the source; `PRESET_VOICE` → **no build** (wrap the provider preset); `MARKETPLACE_VOICE` →
+artifacts may already exist (import/verify); `TRAINED_VOICE` → provider-specific build. Origin
+(Creation Source) and realization (VoiceVariant) stay orthogonal. The per-source policy itself is
+reserved for ADR-0012 (Variant Provisioning Policies).
+
 ### 5.4 Artifact versioning (artifact-level lifecycle)
 
 **Introduced by [ADR-0009](adrs/0009-artifact-versioning-and-retention.md).** Each variant

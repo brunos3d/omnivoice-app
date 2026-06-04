@@ -20,6 +20,7 @@ captures one decision: its context, the options weighed, what was chosen, and th
 | [0008](0008-voice-variant-build-lifecycle.md) | Voice Variant Build Lifecycle (supersedes ADR-0006 status values) | Accepted |
 | [0009](0009-artifact-versioning-and-retention.md) | Artifact Versioning and Retention | Accepted |
 | [0010](0010-voice-source-assets-and-automatic-variant-provisioning.md) | Voice Source Assets and Automatic Variant Provisioning (extends 0006/0008/0009) | Accepted (architecture only) |
+| [0011](0011-voice-creation-sources.md) | Voice Creation Sources (generalizes 0010; Source Asset becomes one origin type) | Accepted (architecture only) |
 
 ## Conventions
 
@@ -32,6 +33,12 @@ captures one decision: its context, the options weighed, what was chosen, and th
 Reserved for decisions expected as the roadmap progresses — write them when the decision is
 actually made, not before:
 
+- **ADR-0012 — Variant Provisioning Policies** (per-Creation-Source provisioning strategies;
+  reserved by [ADR-0011](0011-voice-creation-sources.md)).
+- **ADR-0013 — Model Categories** (classifying providers: cloning vs preset vs training;
+  reserved by [ADR-0011](0011-voice-creation-sources.md)).
+- **ADR-0014 — Marketplace Voice Publishing** (reserved by [ADR-0011](0011-voice-creation-sources.md)).
+- **ADR-0015 — Imported Voice Ecosystem** (reserved by [ADR-0011](0011-voice-creation-sources.md)).
 - Auth vendor adapter choice (Clerk) and the `AuthProvider` seam.
 - Payments/payouts vendor choice (Stripe + Stripe Connect) and the provider seams.
 - SQLite→Postgres cut-over and Alembic adoption.

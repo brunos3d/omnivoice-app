@@ -9,6 +9,11 @@
 - **Refines:** ADR-0008 §Runtime resolution flow — the *build-trigger policy* (when a variant is
   built and what generation does when one is missing). The five-state lifecycle, the build
   mechanism, and the artifact-versioning model are **unchanged**.
+- **Generalized by:** [ADR-0011](0011-voice-creation-sources.md) — the **Voice Source Asset** is
+  reclassified as one *Voice Creation Source* type (`SOURCE_ASSET`). The provisioning and
+  "rebuild from the Source Asset" rules below apply specifically to `SOURCE_ASSET` voices; other
+  origins (e.g. `PRESET_VOICE`) use different strategies. ADR-0010 is not superseded — it is one
+  specialization under ADR-0011.
 
 > **Scope guard.** This ADR is architecture-only. It does **not** change Runtime behavior,
 > add migrations, or ship production code. Current CE code still builds variants lazily at
@@ -242,9 +247,9 @@ are model-native presets, not realizations of a user's identity. Therefore:
 - A user Source Asset is **not** provisioned onto preset-only models.
 - A Voice that has *no* compatible installed model simply has zero variants — a valid identity
   with no realizations (consistent with [Domain §5](../02-DOMAIN_ARCHITECTURE.md) invariants).
-- Preset voices remain a separate origin (the `Voice.is_preset_voice` hook); their full treatment
-  is a **future ADR-0011 ("Preset-backed Voices / non-cloning providers")**, to be written when a
-  preset provider is actually integrated — not speculatively here
+- Preset voices remain a separate origin (the `Voice.is_preset_voice` hook); they are the
+  **`PRESET_VOICE`** Creation Source in [ADR-0011](0011-voice-creation-sources.md), which
+  generalizes voice origin beyond the Source Asset
   ([12 §4.4](../12-PROVIDER-VALIDATION.md)).
 
 ### 9. Responsibility split (normative)
@@ -284,6 +289,8 @@ are model-native presets, not realizations of a user's identity. Therefore:
   - Implementation phase: a `voice_source_assets` data model; the provisioning scheduler;
     install-time backfill; the CE block-on-missing generation guard; the Voice Details variant
     panel; the Cloud "Processing Voice…" abstraction.
-  - **ADR-0011 (future):** preset-backed Voices / non-cloning providers (Kokoro), when integrated.
+  - **[ADR-0011](0011-voice-creation-sources.md):** Voice Creation Sources — generalizes voice
+    origin (Source Asset becomes the `SOURCE_ASSET` type; preset/marketplace/trained/imported/
+    system voices are first-class origins).
   - Auto-routing ([Vision §Future](../00-VISION.md), [12 §8](../12-PROVIDER-VALIDATION.md)) gains a
     clean signal: a Voice's set of READY variants is exactly the set of models it can route to.

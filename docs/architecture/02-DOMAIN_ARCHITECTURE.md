@@ -134,6 +134,16 @@ versions reproducible. The user creates **Source Assets**; PeakVox creates Varia
 *(Today the OmniVoice reference clip doubles as the de-facto source; ADR-0010 elevates it to its
 own layer — schema deferred.)*
 
+**Voice Creation Source (origin, [ADR-0011](adrs/0011-voice-creation-sources.md)).** A Source
+Asset is only one way a Voice can originate. A Voice records a **Creation Source** — a
+model-independent description of *how it came to exist* — from an open taxonomy: `SOURCE_ASSET`
+(user audio, the ADR-0010 flow), `PRESET_VOICE` (a provider-native preset like Kokoro's
+`af_heart` — no source WAV, no cloning), and the reserved `MARKETPLACE_VOICE` / `TRAINED_VOICE` /
+`IMPORTED_VOICE` / `SYSTEM_VOICE`. **Creation Source (origin) is orthogonal to VoiceVariant
+(per-model realization) and must never be merged with it.** The `public_voice_id` is stable
+regardless of origin; the existing `is_preset_voice` flag is the precursor hook for
+`PRESET_VOICE`. *(Schema deferred — architecture only.)*
+
 **Note on today's `VoiceProfile`:** it fuses identity with OmniVoice artifacts. PeakVox splits
 it: identity fields → `Voice`; `audio_filename` / `transcript` / `voice_design` /
 `generation_defaults` → an **OmniVoice `VoiceVariant`**. See

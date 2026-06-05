@@ -98,6 +98,13 @@ async def run_migrations(conn: AsyncConnection) -> None:
     await _remap_legacy_variant_status(conn)
     await _backfill_artifact_versions(conn)
 
+    # 9. Voice creation source column (ADR-0011) — additive, backfill to SOURCE_ASSET.
+    await _add_missing_voice_source_columns(conn)
+    await _backfill_voice_creation_source(conn)
+
+    # 10. Voice source asset table + backfill (ADR-0010).
+    await _backfill_voice_source_assets(conn)
+
 
 async def _existing_voice_columns(conn: AsyncConnection) -> set[str]:
     res = await conn.execute(text("PRAGMA table_info(voice_profiles)"))
@@ -256,11 +263,11 @@ async def _backfill_voice_split(conn: AsyncConnection) -> None:
                 "INSERT INTO voices (id, public_voice_id, creator_id, owner_id, name, "
                 "description, language, language_code, preview_audio, meta, characteristics, "
                 "royalty_config, is_public, is_community_voice, is_preset_voice, is_favorite, "
-                "status, usage_count, created_at, updated_at) VALUES "
+                "status, usage_count, creation_source, created_at, updated_at) VALUES "
                 "(:id, :public_voice_id, :creator_id, :owner_id, :name, :description, :language, "
                 ":language_code, :preview_audio, :meta, :characteristics, :royalty_config, "
                 ":is_public, :is_community_voice, :is_preset_voice, :is_favorite, :status, "
-                ":usage_count, :now, :now)"
+                ":usage_count, 'SOURCE_ASSET', :now, :now)"
             ),
             {
                 **voice,
@@ -411,4 +418,70 @@ async def _backfill_voice_profiles(conn: AsyncConnection) -> None:
         await conn.execute(
             text("UPDATE voice_profiles SET public_voice_id = :pid WHERE id = :id"),
             {"pid": new_id, "id": voice_id},
+        )
+
+
+async def _add_missing_voice_source_columns(conn: AsyncConnection) -> None:
+    res = await conn.execute(text("PRAGMA table_info(voices)"))
+    existing = {row[1] for row in res.fetchall()}
+    if "creation_source" not in existing:
+        await conn.execute(
+            text("ALTER TABLE voices ADD COLUMN creation_source VARCHAR(32)")
+        )
+
+
+async def _backfill_voice_creation_source(conn: AsyncConnection) -> None:
+    """Backfill any Voice rows with NULL creation_source to SOURCE_ASSET."""
+    await conn.execute(
+        text("UPDATE voices SET creation_source = 'SOURCE_ASSET' WHERE creation_source IS NULL")
+    )
+    # Legacy preset voices — backfill rows where is_preset_voice=1 but creation_source is still SOURCE_ASSET.
+    await conn.execute(
+        text("UPDATE voices SET creation_source = 'PRESET_VOICE' WHERE is_preset_voice = 1 AND creation_source = 'SOURCE_ASSET'")
+    )
+
+
+async def _backfill_voice_source_assets(conn: AsyncConnection) -> None:
+    """Create a voice_source_asset row for every voice that has a variant with audio artifacts.
+
+    Idempotent: skips voice_ids already present in voice_source_assets. The storage key is
+    constructed as ``voices/{voice_id}/{audio_filename}`` matching the upload convention.
+    """
+    existing = await conn.execute(text("SELECT voice_id FROM voice_source_assets"))
+    already = {r[0] for r in existing.fetchall()}
+
+    rows = (
+        await conn.execute(
+            text(
+                "SELECT va.voice_id, va.artifacts "
+                "FROM voice_variants va "
+                "WHERE va.artifacts IS NOT NULL "
+                "AND json_extract(va.artifacts, '$.audio') IS NOT NULL"
+            )
+        )
+    ).mappings().all()
+
+    now = datetime.now(timezone.utc).isoformat()
+    for row in rows:
+        if row["voice_id"] in already:
+            continue
+        artifacts = row["artifacts"]
+        audio_filename = (
+            json.loads(artifacts)["audio"]
+            if isinstance(artifacts, str)
+            else artifacts["audio"]
+        )
+        asset_id = str(uuid.uuid4())
+        await conn.execute(
+            text(
+                "INSERT INTO voice_source_assets "
+                "(id, voice_id, asset_type, storage_key, original_filename, created_at) "
+                "VALUES (:id, :voice_id, 'reference_audio', :storage_key, NULL, :now)"
+            ),
+            {
+                "id": asset_id,
+                "voice_id": row["voice_id"],
+                "storage_key": f"voices/{row['voice_id']}/{audio_filename}",
+                "now": now,
+            },
         )

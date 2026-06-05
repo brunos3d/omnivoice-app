@@ -183,6 +183,9 @@ class Voice(Base):
     is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    creation_source: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="SOURCE_ASSET"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -208,7 +211,7 @@ class VoiceVariant(Base):
     params: Mapped[dict | None] = mapped_column(JSON, nullable=True)     # model-specific config
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="cloned")
     # Five-value lifecycle (ADR-0008): pending|building|ready|failed|deprecated.
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     # Pointer to the active artifact version (ADR-0009). NULL while pending/failed.
     active_artifact_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)  # last build failure (ADR-0008)
@@ -244,6 +247,28 @@ class VoiceVariantArtifact(Base):
     retained_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )  # NULL = indefinite (active / marketplace voice)
+
+
+class VoiceSourceAsset(Base):
+    """Canonical source material for a Voice (ADR-0010 §3).
+
+    The original user-provided audio from which every model-specific VoiceVariant is
+    (re)buildable. One Voice may have multiple source assets; the primary one is used for
+    variant provisioning.
+    """
+
+    __tablename__ = "voice_source_assets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    voice_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    asset_type: Mapped[str] = mapped_column(String(32), nullable=False, default="reference_audio")
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 # ---------------------------------------------------------------------------

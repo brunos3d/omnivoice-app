@@ -8,6 +8,8 @@ class GenerationRequest(BaseModel):
     # Optional model selector. None falls back to the platform default (back-compat).
     model_id: Optional[str] = None
     voice_profile_id: Optional[str] = None
+    # Preferred voice identifier (post-split). Replaces voice_profile_id over time.
+    voice_id: Optional[str] = None
     ref_text: Optional[str] = None
     language: Optional[str] = None
     instruct: Optional[str] = None
@@ -25,6 +27,8 @@ class JobResponse(BaseModel):
     text: str
     model_id: Optional[str] = None
     voice_profile_id: Optional[str]
+    voice_id: Optional[str] = None
+    voice_variant_id: Optional[str] = None
     language: Optional[str]
     instruct: Optional[str]
     generation_params: Optional[dict[str, Any]]

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, get_db
-from app.models.db import GenerationJob, VoiceProfile
+from app.models.db import GenerationJob, Voice, VoiceProfile
 from app.schemas.job import GenerationRequest, JobResponse
 from app.services.runtime import (
     runtime,
@@ -43,6 +43,8 @@ def _job_to_response(job: GenerationJob) -> JobResponse:
         text=job.text,
         model_id=job.model_id,
         voice_profile_id=job.voice_profile_id,
+        voice_id=job.voice_id or job.voice_profile_id,
+        voice_variant_id=job.voice_variant_id,
         language=job.language,
         instruct=job.instruct,
         generation_params=job.generation_params,
@@ -146,26 +148,49 @@ async def create_generation_job(
     ref_audio_key: str | None = None
     job_voice_id: str | None = None
     job_variant_id: str | None = None
+    resolved_profile_name: str | None = None
 
-    if request.voice_profile_id:
-        profile = await db.get(VoiceProfile, request.voice_profile_id)
-        if not profile:
-            raise HTTPException(status_code=404, detail="Voice profile not found")
-        ref_audio_key = await resolve_voice_audio_key(profile.id)
-        if not ref_audio_key:
-            raise HTTPException(status_code=404, detail="Voice profile audio file not found")
-        # Usage analytics — powers Recently Used / Popular / Trending later.
-        profile.last_used_at = datetime.now(timezone.utc)
-        profile.usage_count = (profile.usage_count or 0) + 1
-        # PeakVox Phase 3: stamp the resolved Voice identity + its model-specific VoiceVariant
-        # on the job (additive). The Voice id reuses the profile UUID; variant may be None when
-        # the selected model has no built variant yet (generation still uses the reference audio).
-        job_voice_id, job_variant_id = await resolve_variant_stamp(
-            db, voice_internal_id=profile.id, model_id=model.id
-        )
+    # Resolve the voice identity: prefer voice_id (post-split canonical), fall back to legacy
+    # voice_profile_id for backward compatibility with older clients.
+    raw_voice_id = request.voice_id or request.voice_profile_id
+    if raw_voice_id:
+        voice_entity = await db.get(Voice, raw_voice_id)
+        if voice_entity:
+            ref_audio_key = await resolve_voice_audio_key(voice_entity.id)
+            if not ref_audio_key:
+                raise HTTPException(status_code=404, detail="Voice audio file not found")
+            resolved_profile_name = voice_entity.name
+            job_voice_id, job_variant_id = await resolve_variant_stamp(
+                db, voice_internal_id=voice_entity.id, model_id=model.id
+            )
+            # CE block-on-missing (ADR-0010 §6): when using the canonical voice_id path,
+            # reject generation if no variant exists for the selected model.
+            if request.voice_id and job_variant_id is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"This voice is not yet available for model '{model.id}'. "
+                        f"Please build the variant in the Voice Library first."
+                    ),
+                )
+        elif request.voice_profile_id:
+            profile = await db.get(VoiceProfile, request.voice_profile_id)
+            if not profile:
+                raise HTTPException(status_code=404, detail="Voice profile not found")
+            ref_audio_key = await resolve_voice_audio_key(profile.id)
+            if not ref_audio_key:
+                raise HTTPException(status_code=404, detail="Voice profile audio file not found")
+            profile.last_used_at = datetime.now(timezone.utc)
+            profile.usage_count = (profile.usage_count or 0) + 1
+            resolved_profile_name = profile.name
+            job_voice_id, job_variant_id = await resolve_variant_stamp(
+                db, voice_internal_id=profile.id, model_id=model.id
+            )
+        else:
+            raise HTTPException(status_code=404, detail="Voice not found")
 
     gen_params = request.model_dump(
-        exclude={"text", "model_id", "voice_profile_id", "ref_text", "language", "instruct"}
+        exclude={"text", "model_id", "voice_profile_id", "voice_id", "ref_text", "language", "instruct"}
     )
 
     output_key = f"generated/{os.urandom(8).hex()}.wav"
@@ -305,16 +330,21 @@ async def _process_job(job_id: str) -> None:
             return
 
         voice_name: str | None = None
-        if job.voice_profile_id:
-            profile = await session.get(VoiceProfile, job.voice_profile_id)
-            voice_name = profile.name if profile else None
+        resolve_voice_id = job.voice_id or job.voice_profile_id
+        if resolve_voice_id:
+            voice = await session.get(Voice, resolve_voice_id)
+            if voice:
+                voice_name = voice.name
+            elif job.voice_profile_id:
+                profile = await session.get(VoiceProfile, job.voice_profile_id)
+                voice_name = profile.name if profile else None
 
         text_hash = hashlib.sha256(job.text.encode()).hexdigest()[:8]
         logger.info(
             "Job processing start | job_id=%s voice_id=%s voice_name=%s "
             "text_hash=%s text_len=%d lang=%s instruct=%s",
             job_id,
-            job.voice_profile_id or "none",
+            resolve_voice_id or "none",
             voice_name or "none",
             text_hash,
             len(job.text),
@@ -329,7 +359,7 @@ async def _process_job(job_id: str) -> None:
         # Snapshot fields needed outside the session
         job_text = job.text
         job_model_id = job.model_id
-        job_voice_id = job.voice_profile_id
+        job_voice_id = resolve_voice_id
         job_ref_key = job.ref_audio_path
         job_ref_text = job.ref_text
         job_language = job.language
@@ -352,7 +382,7 @@ async def _process_job(job_id: str) -> None:
             text=job_text,
             output_path=local_output,
             model_id=job_model_id,
-            voice_profile_id=job_voice_id,
+            voice_id=job_voice_id,
             ref_audio_path=str(local_ref) if local_ref else None,
             ref_text=job_ref_text,
             language=job_language,

@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Cloud overrides this with marketplace-grade retention.
     ARTIFACT_RETENTION_COUNT: int = 3
 
+    # Fish Audio S2 Pro remote server URL. The server runs separately (api_server.py or
+    # SGLang Omni) and the adapter connects via HTTP. Set to empty string to keep the
+    # model disabled when no Fish backend is available.
+    FISH_AUDIO_SERVER_URL: str = "http://localhost:8080"
+
     @property
     def features(self) -> Features:
         return Features.for_edition(self.EDITION)

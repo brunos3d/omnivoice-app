@@ -1,0 +1,72 @@
+# Execution Ledger
+
+> Historical implementation memory. **Append-only** — never rewrite past entries. A future
+> agent should understand implementation history here without mining git. One entry per
+> meaningful unit of work.
+>
+> Entry format: Date · Task · Spec/Plan · ADR(s) · Files · Validation · Result.
+
+---
+
+### 2026-06-05 · Documentation Operating System
+- **Task:** Build `docs/.agents/` as the single Agent Knowledge Base (agent OS, indexes, SDD scaffold).
+- **Spec/Plan:** this task (documentation architecture).
+- **ADRs:** none new (documentation-only).
+- **Files:** all of `docs/.agents/**`; `frontend/AGENTS.md` (Documentation Operating System section).
+- **Validation:** structural — references resolve to canonical docs; no app code touched.
+- **Result:** Knowledge base created. References (not copies) the canonical architecture/ADR/spec docs.
+
+### 2026-06-04 · Variant Backfill UX + manual provisioning
+- **Task:** Manual + bulk variant creation from source assets; cross-model compatibility view.
+- **Plan:** `superpowers/plans/2026-06-04-variant-backfill-ux.md`.
+- **ADRs:** 0008, 0010, 0011.
+- **Files:** `api/variants.py`, `api/variants_summary.py`, `scripts/backfill_variants.*`, frontend `VariantDashboard.tsx`, `ModelCompatibilitySection.tsx`, `VariantManager.tsx`.
+- **Validation:** frontend build + backend syntax; commits `02bd6a4`, `f8803b4`, `ae44a3e`, `bc19dfb`.
+- **Result:** Implemented. `/variants/backfill` endpoint + "Backfill Missing" UI; `expire_on_commit=False` fix (`3212254`).
+
+### 2026-06-04 · Voice Library 2.0
+- **Task:** Expose Voice → Source Asset → Variant → Artifact → Generation chain with progressive disclosure.
+- **Plan:** `superpowers/plans/2026-06-04-voice-library-2.md`.
+- **ADRs:** 0001, 0008, 0009, 0010, 0011.
+- **Files:** `schemas/voice.py`, `api/voices.py`, frontend voice components, `types/index.ts`, `lib/api.ts`.
+- **Validation:** backend tests + frontend build; commits `bb4af9d`…`b3f686b`.
+- **Result:** Implemented. Tabbed drawer, source asset tab, variant matrix, artifact history + rollback, Variant Dashboard.
+
+### 2026-06-04 · ADR-0011 Voice Creation Sources
+- **Task:** Generalize ADR-0010; a voice's origin is a Creation Source, not always a WAV.
+- **ADRs:** 0011 (generalizes 0010; cross-refs across 9 docs).
+- **Files:** `adrs/0011-voice-creation-sources.md` + cross-references.
+- **Validation:** terminology + link consistency; commit `7dac264`.
+- **Result:** Accepted (architecture only).
+
+### 2026-06-04 · ADR-0010 Voice Source Assets + Automatic Variant Provisioning
+- **Task:** Architecture decision: variants provisioned from a Source Asset.
+- **ADRs:** 0010 (extends 0006/0008/0009).
+- **Files:** `adrs/0010-...md` + cross-references across the suite.
+- **Validation:** documentation only; commit `930` (per memory).
+- **Result:** Accepted (architecture only).
+
+### 2026-06-04 · Phase 1 Retrospective + Provider Validation Program
+- **Task:** Separate architecture validation from provider validation; document the 8-gate process; establish the readiness gate.
+- **Files:** `architecture/11-PHASE-1-RETROSPECTIVE.md`, `architecture/12-PROVIDER-VALIDATION.md`, registry metadata corrections (OmniVoice/Singing/Fish).
+- **Validation:** 237 backend tests / 55 files baseline.
+- **Result:** Documented. Recommendation: no SaaS work before one real foreign provider validates.
+
+### 2026-06-04 · Phases 3.5–3.11 (Runtime foundation → artifact versioning)
+- **Task:** Runtime + capability contract + multi-model adapters + runtime exclusivity + edition scoping + universal voice asset + build lifecycle + artifacts.
+- **ADRs:** 0003, 0004, 0005, 0006, 0008, 0009.
+- **Files:** `services/runtime.py`, `model_adapter.py`, `model_adapters/`, `capabilities.py`, `variant_lifecycle.py`, `voice_variant_artifact_repository.py`.
+- **Validation:** comprehensive backend test suite (architecture-validated).
+- **Result:** Implemented; Fish adapter present but inference unwired.
+
+### 2026-06-03 · Phases 1–3 (CE spine) + architecture hardening
+- **Task:** Platform foundations, model registry, Voice/Variant split, dual-write CRUD; strategic vision + Runtime layer formalization + capability contract + separation rules.
+- **ADRs:** 0001, 0002, 0003, 0004, 0007.
+- **Files:** `models/db.py`, `model_registry.py`, `model_catalog.py`, `voice_variant_repository.py`, `variant_resolution.py`, `voice_onboarding.py`, architecture suite `00`–`10` + ADRs.
+- **Validation:** full regression + frontend verification.
+- **Result:** Implemented; architecture suite consistent before Phase 1 implementation.
+
+---
+
+> **In flight (not yet a completed entry):** stabilizing the uncommitted Fish-adapter / variant-schema /
+> migration working tree — see [`../../NEXT_TASK.md`](../../NEXT_TASK.md). Add a dated entry here once committed.

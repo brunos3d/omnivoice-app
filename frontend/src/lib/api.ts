@@ -12,6 +12,11 @@ import type {
   ModelTagMetadata,
   ModelStatus,
   PlatformInfo,
+  VariantListItem,
+  VariantStatusResponse,
+  VariantBuildResponse,
+  VariantSummaryItem,
+  ArtifactVersionResponse,
 } from "@/types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
@@ -116,6 +121,47 @@ export async function saveVoiceGenerationDefaults(
 
 export function getVoiceAudioUrl(id: string): string {
   return `${API_URL}/voices/${id}/audio`
+}
+
+// ── Variant lifecycle (ADR-0008 / ADR-0009) ──────────────────────────────────
+
+export async function fetchVoiceVariants(voiceId: string): Promise<VariantListItem[]> {
+  return request<VariantListItem[]>(`/voices/${voiceId}/variants`)
+}
+
+export async function fetchVariantStatus(voiceId: string, modelId: string): Promise<VariantStatusResponse> {
+  return request<VariantStatusResponse>(`/voices/${voiceId}/variants/${modelId}`)
+}
+
+export async function ensureVariant(
+  voiceId: string, modelId?: string
+): Promise<VariantBuildResponse> {
+  const qs = modelId ? `?model_id=${encodeURIComponent(modelId)}` : ""
+  return request<VariantBuildResponse>(`/voices/${voiceId}/variants${qs}`, {
+    method: "POST",
+  })
+}
+
+export async function rebuildVariant(voiceId: string, modelId: string): Promise<VariantBuildResponse> {
+  return request<VariantBuildResponse>(`/voices/${voiceId}/variants/${modelId}/rebuild`, {
+    method: "POST",
+  })
+}
+
+export async function rollbackVariant(voiceId: string, modelId: string, version: number): Promise<VariantBuildResponse> {
+  return request<VariantBuildResponse>(`/voices/${voiceId}/variants/${modelId}/rollback/${version}`, {
+    method: "POST",
+  })
+}
+
+export async function fetchArtifactVersions(voiceId: string, modelId: string): Promise<ArtifactVersionResponse[]> {
+  return request<ArtifactVersionResponse[]>(`/voices/${voiceId}/variants/${modelId}/artifacts`)
+}
+
+export async function fetchVariantSummary(): Promise<VariantSummaryItem[]> {
+  const res = await fetch(`${API_URL}/variants/summary`)
+  if (!res.ok) throw new ApiError(res.status, "Failed to fetch variant summary")
+  return res.json()
 }
 
 // ── API keys (internal dashboard) ────────────────────────────────────────────

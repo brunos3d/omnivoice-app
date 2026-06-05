@@ -28,6 +28,18 @@ export interface VoiceCharacteristics {
   emotional_range: string | null
 }
 
+export type CreationSource = "SOURCE_ASSET" | "PRESET_VOICE" | "MARKETPLACE_VOICE" | "TRAINED_VOICE" | "IMPORTED_VOICE" | "SYSTEM_VOICE"
+
+export interface VoiceSourceAsset {
+  id: string
+  asset_type: string
+  original_filename: string | null
+  content_type: string | null
+  file_size: number | null
+  audio_duration: number | null
+  created_at: string
+}
+
 export interface VoiceProfile {
   id: string
   /** Stable, never-changing public identifier (e.g. "voice_8JXQ29K4L3"). */
@@ -48,6 +60,8 @@ export interface VoiceProfile {
   is_community_voice: boolean
   is_preset_voice: boolean
   is_favorite: boolean
+  creation_source: CreationSource
+  source_asset: VoiceSourceAsset | null
   status: VoiceStatus
   usage_count: number
   created_at: string
@@ -229,4 +243,52 @@ export interface PlatformInfo {
   name: string
   edition: string
   features: PlatformFeatures
+}
+
+// ── Variant lifecycle (ADR-0008 / ADR-0009) ──────────────────────────────────
+
+export interface VariantBuildResponse {
+  voice_id: string
+  model_id: string
+  status: string
+  active_artifact_version: number | null
+}
+
+export interface VariantStatusResponse {
+  model_id: string
+  model_name: string
+  status: string
+  active_artifact_version: number | null
+  artifact_count: number
+  error_message: string | null
+}
+
+export interface VariantListItem {
+  model_id: string
+  model_name: string
+  status: string
+  realization_type: string | null
+  active_artifact_version: number | null
+  error_message: string | null
+}
+
+export interface VariantSummaryItem {
+  voice_id: string
+  voice_name: string
+  models: Array<{
+    model_id: string
+    model_name: string
+    status: string
+    active_artifact_version: number | null
+    error_message: string | null
+  }>
+}
+
+export interface ArtifactVersionResponse {
+  version: number
+  created_at: string
+  is_active: boolean
+  model_version: string | null
+  size_bytes: number | null
+  storage_keys: Record<string, unknown> | null
 }

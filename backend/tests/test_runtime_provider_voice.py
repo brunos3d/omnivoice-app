@@ -180,28 +180,10 @@ def test_list_provider_voices_empty_before_registration():
     assert rt.list_provider_voices() == []
 
 
-# ── Generate with provider voice (registry path) ──────────────────────────
+# ── Generate with public_voice_id (DB path) ───────────────────────────────
 
 
-async def test_generate_with_provider_voice_resolves_via_registry():
-    """When voice_id matches a provider voice, resolve via registry, not DB."""
-    rt = _provider_runtime()
-    voice_id = build_provider_voice_id("kokoro", "af_heart")
-    adapter = rt.get_adapter("kokoro")
-    orig_count = len(adapter.generated)
-
-    duration, logs = await rt.generate(
-        db=None, text="hello", model_id="kokoro",
-        voice_id=voice_id, output_path=Path("/tmp/x.wav"),
-    )
-    assert duration == 2.0
-    assert len(adapter.generated) == orig_count + 1
-    # The provider voice_id is passed as voice_profile_id to the adapter
-    assert adapter.generated[-1][0] == voice_id
-    assert adapter.generated[-1][1] == "hello"
-
-
-async def test_generate_with_unknown_voice_falls_through_to_db(session):
+async def test_generate_with_unknown_public_voice_id_raises_not_found(session):
     """When voice_id is NOT in the registry and public_voice_id IS given,
     fall through to persisted Voice DB path."""
     rt = PeakVoxRuntime()
@@ -257,36 +239,6 @@ async def test_generate_provider_voice_rejects_unregistered_model():
             db=None, text="hi", model_id="nope",
             voice_id=voice_id, output_path=Path("/tmp/x.wav"),
         )
-
-
-async def test_generate_provider_voice_does_not_touch_db():
-    """Provider voice generation should NOT require a DB session."""
-    rt = _provider_runtime()
-    voice_id = build_provider_voice_id("kokoro", "af_heart")
-
-    duration, logs = await rt.generate(
-        db=None, text="no db needed", model_id="kokoro",
-        voice_id=voice_id, output_path=Path("/tmp/x.wav"),
-    )
-    assert duration == 2.0
-
-
-# ── Two-tier priority: registry before DB ─────────────────────────────────
-
-
-async def test_provider_voice_takes_priority_over_persisted_voice():
-    """When voice_id exists in registry AND a persisted voice has the same id,
-    the registry (provider) path is used — no DB lookup."""
-    rt = _provider_runtime()
-    voice_id = build_provider_voice_id("kokoro", "af_heart")
-    adapter = rt.get_adapter("kokoro")
-
-    duration, logs = await rt.generate(
-        db=None, text="priority", model_id="kokoro",
-        voice_id=voice_id, output_path=Path("/tmp/x.wav"),
-    )
-    assert duration == 2.0
-    assert adapter.generated[-1][0] == voice_id
 
 
 # ── Auto-population on register_adapter ──────────────────────────────────

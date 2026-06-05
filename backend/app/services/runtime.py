@@ -409,17 +409,9 @@ class PeakVoxRuntime:
             if missing:
                 raise UnsupportedCapability(missing)
 
-        # Two-tier voice resolution: provider voice registry (O(1)) first,
-        # then persisted Voice DB path, then ad-hoc.
-        provider_voice: Optional[ProviderVoice] = None
-        if voice_id is not None:
-            provider_voice = self._provider_voice_registry.get(voice_id)
-
-        if provider_voice is not None:
-            # Provider voice path — no DB, no variant, no artifact.
-            resolved_voice_id = provider_voice.provider_voice_id
-        elif public_voice_id is not None:
-            # Persisted Voice DB path (unchanged).
+        # Single voice resolution path: always resolve through DB.
+        variant_params: dict = {}
+        if public_voice_id is not None:
             resolution = await self.resolve(
                 db, public_voice_id=public_voice_id, model_id=descriptor.id
             )
@@ -431,8 +423,15 @@ class PeakVoxRuntime:
             voice_profile_id = voice_profile_id or resolution.voice.id
             resolved_voice_id = voice_id or voice_profile_id
         else:
-            # Ad-hoc — no voice resolution at all.
             resolved_voice_id = voice_id or voice_profile_id
+
+        # Merge variant params into generate kwargs so adapters can read
+        # provider/preset_name for preset voices.
+        gen_kwargs = dict(params or {})
+        if variant_params:
+            gen_kwargs.update(variant_params)
+        if params:
+            gen_kwargs.update(params)
 
         return await adapter.generate(
             text=text,
@@ -444,6 +443,7 @@ class PeakVoxRuntime:
             instruct=instruct,
             params=params,
             job_id=job_id,
+            **gen_kwargs,
         )
 
 

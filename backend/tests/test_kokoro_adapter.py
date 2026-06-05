@@ -2,9 +2,13 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-
 import pytest
+from sqlalchemy.ext.asyncio import (
+    AsyncSession, async_sessionmaker, create_async_engine,
+)
 
+from app.core.migrations import run_migrations
+from app.models.db import Voice
 from app.models.registry_types import ModelCapabilities, ModelDescriptor
 from app.services.model_adapter import ModelAdapter
 from app.services.provider_voice import (
@@ -15,6 +19,17 @@ from app.services.provider_voice import (
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+async def db_session(tmp_path):
+    eng = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/kokoro.db", future=True)
+    async with eng.begin() as conn:
+        await run_migrations(conn)
+    maker = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+    async with maker() as s:
+        yield s
+    await eng.dispose()
 
 
 @pytest.fixture
@@ -50,6 +65,12 @@ def kokoro_descriptor():
 def adapter(kokoro_descriptor):
     from app.services.model_adapters.kokoro_adapter import KokoroAdapter
     return KokoroAdapter(kokoro_descriptor)
+
+
+def _adapter():
+    from app.services.model_adapters.kokoro_adapter import KokoroAdapter
+    from app.services.model_catalog import builtin_by_id
+    return KokoroAdapter(builtin_by_id("kokoro-base"))
 
 
 _KNOWN_VOICES_54 = sorted([
@@ -345,9 +366,25 @@ async def test_clone_voice_raises_not_implemented(adapter):
 # ── Task 7: build_variant ──────────────────────────────────────────────
 
 
-async def test_build_variant_raises_not_implemented(adapter):
-    with pytest.raises(NotImplementedError):
-        await adapter.build_variant(db=None, voice=None)
+async def test_build_variant_creates_metadata_variant(db_session):
+    adapter = _adapter()
+    voice = Voice(
+        id="preset-voice-1", public_voice_id="voice_preset_1",
+        owner_id="owner", name="Heart",
+        meta={"provider": "kokoro", "preset_name": "af_heart"},
+        creation_source="PRESET_VOICE", status="ready",
+    )
+    db_session.add(voice)
+    await db_session.commit()
+
+    variant = await adapter.build_variant(db=db_session, voice=voice)
+
+    assert variant is not None
+    assert variant.status == "pending"
+    assert variant.params == {"provider": "kokoro", "preset_name": "af_heart"}
+    assert variant.artifacts == {}
+    assert variant.source == "preset"
+    assert variant.artifact_type == "voice_pack"
 
 
 # ── Task 8: Wiring integration ─────────────────────────────────────────

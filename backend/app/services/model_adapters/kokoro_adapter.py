@@ -240,4 +240,46 @@ class KokoroAdapter(ModelAdapter, ProviderVoiceCatalog):
         raise NotImplementedError("Kokoro does not support voice cloning")
 
     async def build_variant(self, *, db, voice):
-        raise NotImplementedError("Kokoro uses ephemeral ProviderVoice only; no variant build")
+        """Create a metadata-only VoiceVariant for the Kokoro preset.
+
+        Kokoro presets require no audio processing, no embedding generation,
+        no checkpoint creation. The variant exists to satisfy ADR-0008 lifecycle
+        contract — all providers participate in Voice → Variant → Artifact → Generation.
+
+        The preset name is read from voice.meta (set by POST /voices/from-preset).
+        """
+        from app.models.db import VoiceVariant as VV
+        from sqlalchemy import select as _select
+
+        existing = (
+            await db.execute(
+                _select(VV).where(
+                    VV.voice_id == voice.id,
+                    VV.model_id == self.model_id,
+                )
+            )
+        ).scalars().first()
+
+        if existing is not None:
+            return existing
+
+        meta = voice.meta or {}
+        import uuid
+
+        variant = VV(
+            id=str(uuid.uuid4()),
+            voice_id=voice.id,
+            model_id=self.model_id,
+            artifact_type="voice_pack",
+            params={
+                "provider": meta.get("provider", "kokoro"),
+                "preset_name": meta.get("preset_name", ""),
+            },
+            artifacts={},
+            source="preset",
+            status="pending",
+        )
+        db.add(variant)
+        await db.commit()
+        await db.refresh(variant)
+        return variant

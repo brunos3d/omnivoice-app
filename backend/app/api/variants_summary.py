@@ -27,22 +27,35 @@ async def get_variant_summary(db: AsyncSession = Depends(get_db)):
         await db.execute(select(VoiceVariant))
     ).scalars().all()
 
-    voice_map: dict[str, list[dict]] = {}
+    voice_map: dict[str, dict[str, dict]] = {}
     for v in variants:
-        voice_map.setdefault(v.voice_id, []).append({
+        voice_map.setdefault(v.voice_id, {})[v.model_id] = {
             "model_id": v.model_id,
             "model_name": model_map.get(v.model_id, v.model_id),
             "status": v.status,
             "active_artifact_id": v.active_artifact_id,
             "error_message": v.error_message,
-        })
+        }
 
     result = []
     for voice in voices:
+        models_out = []
+        for model in models:
+            variant = voice_map.get(voice.id, {}).get(model.id)
+            if variant:
+                models_out.append(variant)
+            else:
+                models_out.append({
+                    "model_id": model.id,
+                    "model_name": model.name,
+                    "status": "missing",
+                    "active_artifact_id": None,
+                    "error_message": None,
+                })
         result.append({
             "voice_id": voice.id,
             "voice_name": voice.name,
-            "models": voice_map.get(voice.id, []),
+            "models": models_out,
         })
 
     return result

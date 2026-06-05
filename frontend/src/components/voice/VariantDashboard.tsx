@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  MinusCircle,
   XCircle,
 } from "lucide-react"
 import { fetchVariantSummary } from "@/lib/api"
@@ -16,6 +17,7 @@ const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   pending: Clock,
   failed: XCircle,
   deprecated: AlertCircle,
+  missing: MinusCircle,
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -24,6 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "text-muted-foreground",
   failed: "text-error",
   deprecated: "text-warning",
+  missing: "text-muted-foreground",
 }
 
 interface VariantDashboardProps {

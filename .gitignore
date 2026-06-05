@@ -34,6 +34,7 @@ Thumbs.db
 *.swp
 *.swo
 .tasks/
+.superpowers/
 
 # Data (host bind-mount only, but keep local paths clean)
 /data/

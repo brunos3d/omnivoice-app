@@ -167,7 +167,7 @@ export async function fetchVariantSummary(): Promise<VariantSummaryItem[]> {
 
 export async function backfillMissingVariants(modelFilter?: string): Promise<BackfillResponse> {
   const qs = modelFilter ? `?model_filter=${encodeURIComponent(modelFilter)}` : ""
-  return request<BackfillResponse>(`/variants/backfill${qs}`, { method: "POST" })
+  return request<BackfillResponse>(`/voices/variants/backfill${qs}`, { method: "POST" })
 }
 
 // ── API keys (internal dashboard) ────────────────────────────────────────────

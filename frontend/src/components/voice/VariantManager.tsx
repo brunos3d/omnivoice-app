@@ -7,6 +7,7 @@ import {
   Clock,
   Hammer,
   Loader2,
+  MinusCircle,
   RefreshCw,
   XCircle,
 } from "lucide-react"
@@ -30,6 +31,7 @@ const STATUS_ICONS: Record<string, typeof CheckCircle2> = {
   pending: Clock,
   failed: XCircle,
   deprecated: AlertCircle,
+  missing: MinusCircle,
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -38,6 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "text-muted-foreground",
   failed: "text-error",
   deprecated: "text-warning",
+  missing: "text-muted-foreground",
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -46,6 +49,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending: "Not built",
   failed: "Failed",
   deprecated: "Deprecated",
+  missing: "Missing",
 }
 
 function mergeModelsWithVariants(
@@ -76,6 +80,7 @@ export function VariantManager({ publicVoiceId }: VariantManagerProps) {
     mutationFn: (modelId: string) => ensureVariant(publicVoiceId, modelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["voice-variants", publicVoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["variant-summary"] })
     },
   })
 
@@ -83,6 +88,7 @@ export function VariantManager({ publicVoiceId }: VariantManagerProps) {
     mutationFn: (modelId: string) => rebuildVariant(publicVoiceId, modelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["voice-variants", publicVoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["variant-summary"] })
     },
   })
 
@@ -167,7 +173,7 @@ export function VariantManager({ publicVoiceId }: VariantManagerProps) {
                         {thisBusy
                           ? <Loader2 className="h-3 w-3 animate-spin" />
                           : <Hammer className="h-3 w-3" />}
-                        Build
+                        Create Variant
                       </Button>
                     ) : (
                       <div className="flex items-center justify-end gap-1.5">

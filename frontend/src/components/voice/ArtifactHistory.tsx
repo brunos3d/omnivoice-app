@@ -56,6 +56,7 @@ export function ArtifactHistory({ publicVoiceId }: ArtifactHistoryProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["artifact-versions", publicVoiceId, selectedModel] })
       queryClient.invalidateQueries({ queryKey: ["voice-variants", publicVoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["variant-summary"] })
     },
   })
 

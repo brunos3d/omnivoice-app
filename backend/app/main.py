@@ -10,6 +10,7 @@ from app.core.database import AsyncSessionLocal, init_db
 from app.core.editions import mount_cloud_routers
 from app.api import voices, generation, health, media, models, platform, variants
 from app.api.variants_summary import router as variants_summary_router
+from app.api.provider_voices import router as provider_voices_router
 from app.api.settings import router as settings_router
 from app.api.api_keys import router as api_keys_router
 from app.api.v1 import router as v1_router
@@ -60,6 +61,7 @@ app.include_router(generation.router, prefix="", tags=["Generation"])
 app.include_router(settings_router, prefix="", tags=["Settings"])
 app.include_router(api_keys_router, prefix="/api-keys", tags=["API Keys"])
 app.include_router(v1_router, prefix="/api/v1", tags=["Public API v1"])
+app.include_router(provider_voices_router, tags=["Provider Voices"])
 
 # Cloud-only routers mount only under cloud features; a no-op in Community Edition.
 mount_cloud_routers(app, features=settings.features)

@@ -13,7 +13,7 @@ import { Chip } from "@/components/common/Chip"
 import { VariantDashboard } from "@/components/voice/VariantDashboard"
 import { PresetVoicesTab } from "@/components/voice/PresetVoicesTab"
 import { VoiceGrid } from "@/components/voice/VoiceGrid"
-import { VoiceDetailsDrawer } from "@/components/voice/VoiceDetailsDrawer"
+import { VoiceDetailPanel } from "@/components/voice/VoiceDetailPanel"
 import { VoiceEditDialog } from "@/components/voice/VoiceEditDialog"
 import { EmptyState } from "@/components/common/EmptyState"
 import { AudioPlayer } from "@/components/AudioPlayer"
@@ -365,7 +365,7 @@ export default function VoiceLibraryPage() {
         </div>
       </PageLayout>
 
-      <VoiceDetailsDrawer
+      <VoiceDetailPanel
         voice={detailsVoice}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}

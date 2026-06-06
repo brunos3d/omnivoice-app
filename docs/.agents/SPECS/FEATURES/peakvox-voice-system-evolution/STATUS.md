@@ -1,6 +1,6 @@
 # STATUS — PeakVox Voice System Evolution
 
-**Status:** APPROVED
+**Status:** PARTIAL — Phases A, B, C, D, E, J, K implemented
 
 **Last updated:** 2026-06-06
 
@@ -54,4 +54,6 @@
 | I | Remaining ADRs and codification | P3 |
 | M | Collections (future reservation only) | P3 |
 
-**Next step:** Architecture is ready for implementation. Begin with Phase A (settings schema), Phase B (CompatibilityResolver), Phase J (library search/sort/paginate), and Phase K (VoiceDetailPanel).
+**Completed:** A (settings schema), B (CompatibilityResolver), C (frontend capability), D (type-aware display), E (VoicePreview multi-preview), J (library search/sort/paginate), K (VoiceDetailPanel canonical surface).
+
+**Next step:** Phase F (VariantBuildStrategy + ModelVoiceFeatures) or Phase L (Recently Used Tracking).

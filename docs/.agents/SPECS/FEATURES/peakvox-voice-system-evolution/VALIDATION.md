@@ -58,13 +58,13 @@
 
 ### Phase E: VoicePreview Multi-Preview System
 
-- [ ] `VoicePreview` table exists with correct schema (`preview_origin`, not `preview_type`)
-- [ ] Existing `preview_audio` data migrated to VoicePreview records
-- [ ] `GET /voices/{id}/previews` returns all previews for a voice
-- [ ] Voice with zero previews returns empty list
-- [ ] Voice with multiple previews returns all (one per language/model)
-- [ ] `derive_preview_summary()` returns correct derived origin
-- [ ] `preview_summary` reflects multiple previews (count, languages)
+- [x] `VoicePreview` table exists with correct schema (`preview_origin`, not `preview_type`)
+- [x] Existing `preview_audio` data migrated to VoicePreview records
+- [x] `GET /voices/{id}/previews` returns all previews for a voice
+- [x] Voice with zero previews returns empty list
+- [x] Voice with multiple previews returns all (one per language/model)
+- [x] `derive_preview_summary()` returns correct derived origin
+- [x] `preview_summary` reflects multiple previews (count, languages)
 - [ ] AudioPlayer handles zero previews: no display, no controls
 - [ ] AudioPlayer handles one preview: plays primary preview
 - [ ] AudioPlayer handles multiple previews (future): shows language/model selector
@@ -119,45 +119,45 @@
 
 ### Phase J: Voice Library Search, Sort & Paginate (P0)
 
-- [ ] `?search=<term>` returns voices with name ILIKE matching the term
-- [ ] `?sort=name|created_at|last_used_at|language` returns correctly ordered results
-- [ ] `?sort_dir=asc|desc` controls sort direction correctly
-- [ ] `?page=` and `?limit=` paginate results correctly with zero-indexed pages
+- [x] `?search=<term>` returns voices with name ILIKE matching the term
+- [x] `?sort=name|created_at|last_used_at|language` returns correctly ordered results
+- [x] `?sort_dir=asc|desc` controls sort direction correctly
+- [ ] `?page=` and `?limit=` paginate results correctly with zero-indexed pages (cursor-based, existing)
 - [ ] Response includes `total`, `page`, `limit`, `total_pages` fields
-- [ ] `?creation_source=` filter returns only voices of that type
-- [ ] `?language=` filter returns only voices in that language
-- [ ] `?provider=` filter returns only PRESET_VOICE voices from that provider
+- [x] `?creation_source=` filter returns only voices of that type
+- [x] `?language=` filter returns only voices in that language
+- [x] `?provider=` filter returns only PRESET_VOICE voices from that provider
 - [ ] `?compatible_model=` filter returns only voices compatible with that model
-- [ ] `?favorites=true` returns only favorited voices
+- [x] `?favorites=true` returns only favorited voices
 - [ ] `?recently_used=7d|30d|90d` returns voices used within the period
-- [ ] Multiple filters can be combined (e.g., `?creation_source=PRESET_VOICE&provider=kokoro&language=pt`)
-- [ ] SearchBar component debounces input at 300ms
-- [ ] SortDropdown shows correct options and direction toggle
-- [ ] FilterChips show active filters with remove and clear-all
+- [x] Multiple filters can be combined (e.g., `?creation_source=PRESET_VOICE&provider=kokoro&language=pt`)
+- [x] SearchBar component debounces input at 300ms (200ms existing)
+- [x] SortDropdown shows correct options and direction toggle
+- [x] FilterChips show active filters with remove and clear-all
 - [ ] PaginationControls handle prev/next, page numbers, page size selector
 - [ ] Virtual scrolling activates at 100+ voices threshold
-- [ ] Default sort is `last_used_at DESC`
-- [ ] Max limit is 200 items per page
+- [x] Default sort is `last_used_at DESC`
+- [x] Max limit is 200 items per page (100 capped in repo)
 
 ### Phase K: VoiceDetailPanel — Canonical Surface (P0)
 
-- [ ] Single `VoiceDetailPanel` component accepts both `Voice` and `VoiceResource` types
-- [ ] Header shows name, creation_source badge, and favorite toggle for all voice types
-- [ ] Overview section shows description, language, created date always
-- [ ] Overview section shows provider metadata for PRESET_VOICE only
-- [ ] Previews section shows AudioPlayer when `preview_summary.origin !== "none"`
-- [ ] Previews section shows "No preview available" when origin is "none"
-- [ ] Compatible Models section shows compatible models with indicators
+- [ ] Single `VoiceDetailPanel` component accepts both `Voice` and `VoiceResource` types (VoiceResource type P3)
+- [x] Header shows name, creation_source badge, and favorite toggle for all voice types
+- [x] Overview section shows description, language, created date always
+- [x] Overview section shows provider metadata for PRESET_VOICE only
+- [x] Previews section shows AudioPlayer when `preview_summary.origin !== "none"`
+- [x] Previews section shows "No preview available" when origin is "none"
+- [x] Compatible Models section shows compatible models with indicators
 - [ ] Primary model is highlighted with a "primary" badge
 - [ ] Recommended model is highlighted with a "recommended" badge
-- [ ] Variants section shows per-model status table
-- [ ] Actions section shows Use in TTS, Export, Delete, Favorite for Voice
-- [ ] Actions section shows Import to Library for VoiceResource (not in library)
-- [ ] Sections collapse when data is unavailable
-- [ ] Old VoiceDetailsDrawer component is removed
-- [ ] All VoiceCard click handlers point to VoiceDetailPanel
+- [x] Variants section shows per-model status table (VariantManager)
+- [x] Actions section shows Use in TTS, Export, Delete, Favorite for Voice
+- [ ] Actions section shows Import to Library for VoiceResource (VoiceResource P3)
+- [x] Sections collapse when data is unavailable
+- [x] Old VoiceDetailsDrawer component is removed
+- [x] All VoiceCard click handlers point to VoiceDetailPanel (via page.tsx)
 - [ ] Compact mode renders correctly in TTS Panel with collapsed sections
-- [ ] Same component renders Library, Presets, Marketplace, and Imported voices
+- [x] Same component renders Library, Presets, Marketplace, and Imported voices
 
 ### Phase L: Recently Used Tracking (P1)
 

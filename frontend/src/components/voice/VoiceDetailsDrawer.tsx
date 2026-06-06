@@ -44,17 +44,25 @@ const CHARACTERISTIC_LABELS: Record<string, string> = {
 }
 
 const CREATION_SOURCE_LABELS: Record<string, { label: string; className: string }> = {
-  SOURCE_ASSET: { label: "Source Audio", className: "bg-sky-500/10 text-sky-500 border-sky-500/20" },
-  PRESET_VOICE: { label: "Preset", className: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-  MARKETPLACE_VOICE: { label: "Marketplace", className: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
-  TRAINED_VOICE: { label: "Trained", className: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-  IMPORTED_VOICE: { label: "Imported", className: "bg-violet-500/10 text-violet-500 border-violet-500/20" },
+  SOURCE_ASSET: { label: "Cloned", className: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  PRESET_VOICE: { label: "Preset", className: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+  MARKETPLACE_VOICE: { label: "Marketplace", className: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  TRAINED_VOICE: { label: "Trained", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+  IMPORTED_VOICE: { label: "Imported", className: "bg-violet-500/10 text-violet-600 border-violet-500/20" },
   SYSTEM_VOICE: { label: "System", className: "bg-muted text-muted-foreground border-border" },
+}
+
+function usePreviewable(voice: VoiceProfile): boolean {
+  return voice.preview_summary
+    ? voice.preview_summary.origin !== "none"
+    : (voice.audio_duration ?? 0) > 0
 }
 
 export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, onDelete }: VoiceDetailsDrawerProps) {
   const [copied, setCopied] = useState(false)
   const [apiOpen, setApiOpen] = useState(false)
+  const isPreset = voice?.creation_source === "PRESET_VOICE"
+  const previewable = voice ? usePreviewable(voice) : false
 
   const copyId = () => {
     if (!voice) return
@@ -73,15 +81,15 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
             <SheetHeader className="border-b border-border">
               <SheetTitle>{voice.name}</SheetTitle>
               <SheetDescription>
-                {[voice.language, formatDuration(voice.audio_duration)].filter(Boolean).join(" · ")}
+                {[voice.language, previewable ? formatDuration(voice.audio_duration) : null].filter(Boolean).join(" · ")}
               </SheetDescription>
             </SheetHeader>
 
             <Tabs defaultValue="overview" className="flex flex-col h-full">
               <div className="border-b border-border px-4 pt-4">
-                <TabsList className="grid grid-cols-4">
+                <TabsList className={isPreset ? "grid grid-cols-3" : "grid grid-cols-4"}>
                   <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="source">Source</TabsTrigger>
+                  {!isPreset && <TabsTrigger value="source">Source</TabsTrigger>}
                   <TabsTrigger value="variants">Variants</TabsTrigger>
                   <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
                 </TabsList>
@@ -117,8 +125,11 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
                     </button>
                   </div>
 
-                  {(voice.audio_duration ?? 0) > 0 && (
+                  {previewable && !isPreset && (
                     <AudioPlayer audioUrl={getVoiceAudioUrl(voice.id)} title="Reference audio" duration={voice.audio_duration} />
+                  )}
+                  {isPreset && previewable && (
+                    <AudioPlayer audioUrl={getVoiceAudioUrl(voice.id)} title="Provider audio" duration={voice.audio_duration} />
                   )}
 
                   {voice.description && (
@@ -128,7 +139,16 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
                     </div>
                   )}
 
-                  {voice.transcript && (
+                  {isPreset && voice.meta?.provider != null && (
+                    <div className="space-y-1">
+                      <p className="text-caption uppercase tracking-wide">Provider</p>
+                      <Badge variant="secondary" className="gap-1">
+                        {String(voice.meta.provider)}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {voice.transcript && !isPreset && (
                     <div className="space-y-1">
                       <p className="text-caption uppercase tracking-wide">Transcript</p>
                       <p className="text-sm text-foreground/90 leading-relaxed">{voice.transcript}</p>
@@ -145,7 +165,7 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
                       <MetaRow label="Usage count" value={String(voice.usage_count)} />
                       <MetaRow label="Created" value={new Date(voice.created_at).toLocaleString()} />
                       <MetaRow label="Last used" value={voice.last_used_at ? new Date(voice.last_used_at).toLocaleString() : "Never"} />
-                      <MetaRow label="Duration" value={formatDuration(voice.audio_duration)} />
+                      {previewable && <MetaRow label="Duration" value={formatDuration(voice.audio_duration)} />}
                     </div>
                   </div>
 
@@ -199,9 +219,11 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
                   )}
                 </TabsContent>
 
-                <TabsContent value="source" className="p-6 space-y-6">
-                  <SourceAssetTab voice={voice} />
-                </TabsContent>
+                {!isPreset && (
+                  <TabsContent value="source" className="p-6 space-y-6">
+                    <SourceAssetTab voice={voice} />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="variants" className="p-6 space-y-6">
                   <VariantManager publicVoiceId={voice.public_voice_id} />

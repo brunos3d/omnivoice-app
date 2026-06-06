@@ -18,6 +18,12 @@ export type VoiceStatus = "ready" | "archived" | "processing" | "failed"
  * `voice_design` (source of truth) + preset tags. Filtering/search read this — never
  * edited by hand.
  */
+export interface PreviewSummary {
+  origin: "reference" | "provider" | "generated" | "user" | "marketplace" | "none"
+  count: number
+  languages: string[]
+}
+
 export interface VoiceCharacteristics {
   gender: string | null
   age_group: string | null
@@ -62,6 +68,7 @@ export interface VoiceProfile {
   is_favorite: boolean
   creation_source: CreationSource
   compatible_models: string[]
+  preview_summary: PreviewSummary
   source_asset: VoiceSourceAsset | null
   status: VoiceStatus
   usage_count: number

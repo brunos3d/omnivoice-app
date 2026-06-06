@@ -9,12 +9,18 @@ import { formatDuration, cn } from "@/lib/utils"
 import type { VoiceProfile } from "@/types"
 
 const CREATION_SOURCE_LABELS: Record<string, { label: string; className: string }> = {
-  SOURCE_ASSET: { label: "Source Audio", className: "bg-sky-500/10 text-sky-500 border-sky-500/20" },
-  PRESET_VOICE: { label: "Preset", className: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
-  MARKETPLACE_VOICE: { label: "Marketplace", className: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
-  TRAINED_VOICE: { label: "Trained", className: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-  IMPORTED_VOICE: { label: "Imported", className: "bg-violet-500/10 text-violet-500 border-violet-500/20" },
+  SOURCE_ASSET: { label: "Cloned", className: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  PRESET_VOICE: { label: "Preset", className: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+  MARKETPLACE_VOICE: { label: "Marketplace", className: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  TRAINED_VOICE: { label: "Trained", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+  IMPORTED_VOICE: { label: "Imported", className: "bg-violet-500/10 text-violet-600 border-violet-500/20" },
   SYSTEM_VOICE: { label: "System", className: "bg-muted text-muted-foreground border-border" },
+}
+
+function usePreviewable(voice: VoiceProfile): boolean {
+  return voice.preview_summary
+    ? voice.preview_summary.origin !== "none"
+    : (voice.audio_duration ?? 0) > 0
 }
 
 interface VoiceCardProps {
@@ -59,6 +65,7 @@ export function VoiceCard({
   const initials = voice.name.slice(0, 2).toUpperCase()
   const chars = voice.characteristics
   const chips = [chars?.gender, chars?.accent].filter(Boolean) as string[]
+  const previewable = usePreviewable(voice)
 
   return (
     <div
@@ -90,7 +97,14 @@ export function VoiceCard({
             {voice.language && (
               <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{voice.language}</Badge>
             )}
-            <span className="text-caption">{formatDuration(voice.audio_duration)}</span>
+            {previewable && (
+              <span className="text-caption">{formatDuration(voice.audio_duration)}</span>
+            )}
+            {voice.creation_source === "PRESET_VOICE" && voice.meta?.provider != null && (
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                {String(voice.meta.provider)}
+              </Badge>
+            )}
             {voice.generation_defaults && (
               <Badge className="gap-1 bg-primary/15 px-1.5 py-0 text-[10px] text-primary hover:bg-primary/20">
                 <Sparkles className="h-2.5 w-2.5" /> preset
@@ -122,7 +136,7 @@ export function VoiceCard({
             />
           </Button>
         )}
-        {(voice.audio_duration ?? 0) > 0 && (
+        {previewable && (
           <Button
             variant="secondary"
             size="icon"

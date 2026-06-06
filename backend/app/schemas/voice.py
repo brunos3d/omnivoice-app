@@ -66,6 +66,20 @@ class VoiceSourceAssetResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PreviewSummary(BaseModel):
+    """Derived preview availability for a voice.
+
+    Always computed, never stored. Before the ``voice_previews`` table exists
+    (Phase E), this is heuristically derived from ``audio_duration`` +
+    ``creation_source``. After Phase E it is computed from the actual preview
+    records.
+    """
+
+    origin: str  # "reference" | "provider" | "generated" | "user" | "marketplace" | "none"
+    count: int = 0
+    languages: list[str] = []
+
+
 class VoiceProfileResponse(BaseModel):
     id: str
     public_voice_id: str
@@ -89,6 +103,7 @@ class VoiceProfileResponse(BaseModel):
     usage_count: int = 0
     creation_source: str = "SOURCE_ASSET"
     compatible_models: list[str] = []
+    preview_summary: PreviewSummary = PreviewSummary(origin="none")
     source_asset: Optional[VoiceSourceAssetResponse] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -102,6 +117,20 @@ class VoiceProfileResponse(BaseModel):
         if isinstance(data, dict) and "creation_source" not in data:
             data["creation_source"] = "PRESET_VOICE" if data.get("is_preset_voice") else "SOURCE_ASSET"
         return data
+
+    @model_validator(mode="after")
+    def _derive_preview_summary(self) -> "VoiceProfileResponse":
+        has_audio = (self.audio_duration or 0) > 0 and bool(self.audio_filename)
+        if has_audio:
+            origin_map = {
+                "SOURCE_ASSET": "reference",
+                "PRESET_VOICE": "provider",
+            }
+            self.preview_summary = PreviewSummary(
+                origin=origin_map.get(self.creation_source, "reference"),
+                count=1,
+            )
+        return self
 
 
 class VoiceListPage(BaseModel):

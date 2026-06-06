@@ -119,20 +119,34 @@ Before the boundary crossing, the entity is a catalog descriptor. After, it is a
 
 ### VoiceResource Catalog Abstraction
 
-To represent catalog-level entities without prematurely creating Voices, introduce `VoiceResource` as a transient, API-facing type. NOT a database entity.
+To represent catalog-level entities without prematurely creating Voices, introduce `VoiceResource` as a **catalog contract** — a transient, API-facing descriptor. NOT a database entity.
+
+`VoiceResource` defines the interface every catalog source must satisfy. Concrete subtypes (`ProviderVoice`, `MarketplaceVoice`, `ExternalVoice`, `GeneratedVoice`) implement this contract for their specific domain.
+
+**Domain type — pure, no derived state:**
 
 ```typescript
+// Catalog contract — each catalog source implements this shape.
 interface VoiceResource {
   id: string;                    // catalog-level ID (provider:preset, marketplace:listing, etc.)
   resource_type: "preset" | "marketplace" | "imported" | "generated";
+  resource_origin: string;       // e.g. "kokoro", "fish", "community", "peakvox"
   name: string;
   description: string | null;
   language: string | null;
-  previews: VoicePreviewDescriptor[];
-  provider_metadata: Record<string, any>;
-  compatible_models: string[];   // which models can realize this
-  is_in_library: boolean;        // has this been imported as a Voice?
-  library_voice_id: string | null; // if is_in_library, points to the Voice
+  preview_audio_url: string | null;  // provider-supplied audio, NOT VoicePreview records
+  catalog_source: Record<string, any>;  // provenance metadata (adapter_id, version, last_synced, etc.)
+}
+```
+
+**Response DTO — includes query-time derived state:**
+
+```typescript
+interface VoiceResourceResponse extends VoiceResource {
+  is_in_library: boolean;            // has this been imported as a Voice?
+  library_voice_id: string | null;   // if is_in_library, points to the Voice
+  compatible_models: string[];       // from CompatibilityResolver
+  recommended_model_id: string | null;  // from CompatibilityResolver
 }
 ```
 
@@ -142,6 +156,22 @@ interface VoiceResource {
 - Import source data
 
 The API returns `GET /voice-resources` for the unified catalog view (browsing presets + marketplace + imports). The user's library is `GET /voices`.
+
+**Concrete subtype — ProviderVoice (first implementation):**
+
+```typescript
+// ProviderVoice implements the VoiceResource catalog contract.
+// resource_type = "preset", resource_origin = provider_id.
+interface ProviderVoice extends VoiceResource {
+  provider_id: string;
+  external_id: string;
+  gender: string | null;
+  tags: string[];
+  is_default: boolean;
+}
+```
+
+Future subtypes (`MarketplaceVoice`, `ExternalVoice`, `GeneratedVoice`) follow the same contract. Each adds its own domain-specific fields while satisfying `VoiceResource`.
 
 ### Preview Architecture
 
@@ -199,6 +229,37 @@ def derive_preview_summary(previews: list[VoicePreview]) -> PreviewSummary:
                 )
     return PreviewSummary(origin="none", reason="No playable preview found")
 ```
+
+### ImportResolver — Generic Import Pipeline
+
+The import boundary is crossed through a single `ImportResolver` that is **resource-type agnostic**:
+
+```
+Input:  VoiceResourceResponse (any subtype — ProviderVoice, MarketplaceVoice, etc.)
+Output: Voice + VoiceVariant + VoiceVariantArtifact
+
+Steps:
+  1. Validate is_in_library == false (prevent double-import)
+  2. Determine model_id from:
+       a. model_id argument (if caller specifies)
+       b. recommended_model_id from response (if available)
+       c. first entry in compatible_models (fallback)
+  3. Create Voice with creation_source mapped from resource_type:
+       "preset"       → PRESET_VOICE
+       "marketplace"  → MARKETPLACE_VOICE
+       "imported"     → IMPORTED_VOICE
+       "generated"    → GENERATED_VOICE
+  4. Create VoiceVariant with type from adapter's VariantBuildStrategy
+  5. Create VoiceVariantArtifact (version 1)
+  6. Return VoiceProfileResponse
+```
+
+**Rule:** The ImportResolver branches on the target model's `VariantBuildStrategy`, NOT on `resource_type`. The `resource_type → creation_source` mapping is the only branching on resource type, and it is a simple lookup table.
+
+**Why ImportResolver consumes `VoiceResourceResponse` (not raw `VoiceResource`):**
+- Derivation of `is_in_library` requires a DB cross-reference (the response DTO carries it)
+- `compatible_models` and `recommended_model_id` guide model selection
+- The response DTO is what the frontend already has — no second lookup needed
 
 ---
 

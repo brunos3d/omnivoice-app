@@ -102,18 +102,27 @@
 - [x] Decision flowcharts: compatibility, preview, TTS, library (Mermaid diagrams)
 - [x] Referenced in AGENTS.md as mandatory reading (README.md updated)
 
-### Phase H: VoiceResource Catalog (P3 — Future)
+### Phase H: VoiceResource Catalog (P3 — Foundation Pass)
 
-- [ ] `GET /voice-resources` returns unified catalog of presets (and future types)
-- [ ] Provider presets appear as VoiceResource items with `resource_type: "preset"`
-- [ ] Each VoiceResource has `is_in_library` flag
-- [ ] Imported VoiceResources have `library_voice_id` pointing to Voice
-- [ ] `POST /voice-resources/{id}/import` creates Voice + Variant + Artifact + Previews
+- [ ] `ProviderVoice` domain type gains `resource_origin` and `catalog_source` fields
+- [ ] `VoiceResource` is defined as a catalog contract (not a DB entity, not a single class)
+- [ ] `VoiceResourceResponse` Pydantic schema exists with derived fields
+- [ ] `is_in_library` and `library_voice_id` are query-time derived, never stored
+- [ ] `VoiceResourceService` aggregates `ProviderVoiceRegistry` into catalog view
+- [ ] `GET /voice-resources` returns unified catalog with `is_in_library` enrichment
+- [ ] `GET /voice-resources?resource_type=preset` returns only preset-type resources
+- [ ] `POST /voice-resources/{id}/import` imports any resource type (not just presets)
+- [ ] `ImportResolver` branches on model's `VariantBuildStrategy`, not on `resource_type`
 - [ ] Imported preset has `creation_source = PRESET_VOICE`
-- [ ] Voice Library has "Library" and "Browse" tabs
-- [ ] Unimported preset in Browse tab does not appear in Library
-- [ ] Imported preset appears in both Library and Browse (with `is_in_library = true`)
-- [ ] Existing `POST /voices/from-preset` flow is backward-compatible
+- [ ] Double-import returns HTTP 409 Conflict
+- [ ] `POST /voices/from-preset` delegates to `ImportResolver` (backward-compatible)
+- [ ] `GET /api/provider-voices` delegates to `VoiceResourceService` (backward-compatible)
+- [ ] `VoiceDetailPanel` accepts `VoiceProfile | VoiceResourceResponse | null`
+- [ ] `VoiceDetailPanel` shows "Import to Library" action for unimported resources
+- [ ] `VoiceDetailPanel` does not branch layout on type — only on action availability
+- [ ] `PresetVoicesTab` uses `fetchVoiceResources()` + `importVoiceResource()`
+- [ ] No new DB tables created for VoiceResource (transient only)
+- [ ] Frontend `VoiceResourceResponse` type exists with all fields
 
 ### Phase I: ADRs and Documentation (P3)
 
@@ -214,6 +223,12 @@
 | VoiceDetailPanel sections collapse correctly per type | Frontend (component) | K |
 | Last used timestamp set after generation | Backend (integration) | L |
 | Recently used filter returns correct period | Backend (unit) | L |
+| VoiceResourceResponse constructed from ProviderVoice | Backend (unit) | H |
+| is_in_library derived from DB cross-reference | Backend (integration) | H |
+| ImportResolver produces correct Voice from any resource_type | Backend (integration) | H |
+| Double-import returns 409 Conflict | Backend (API) | H |
+| VoiceDetailPanel renders VoiceResourceResponse without layout branching | Frontend (component) | H |
+| POST /voices/from-preset backward-compatible after refactor | Backend (API) | H |
 
 ## Key Non-Goals (Out of Scope)
 

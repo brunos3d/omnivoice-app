@@ -23,10 +23,26 @@ Voice                      model-agnostic identity + economic asset
  ├── VoicePreview(s)       playable audio samples
  └── Favorites             is_favorite boolean (CE) / voice_favorites table (Cloud)
 
-VoiceResource              transient catalog descriptor (NOT persisted)
- ├── resource_type         preset | marketplace | imported | generated
- ├── is_in_library         has this been imported?
- └── library_voice_id      → Voice if imported
+VoiceResource              catalog contract — transient descriptor (NOT persisted)
+ ├── ProviderVoice         provider-native preset voice (Kokoro, Piper, etc.)
+ │    ├── resource_type    = "preset"
+ │    ├── resource_origin  = "kokoro" | "piper" | etc.
+ │    └── provider_id      e.g. "kokoro"
+ ├── MarketplaceVoice      marketplace listing (future — reserved)
+ │    ├── resource_type    = "marketplace"
+ │    └── resource_origin  = "community" | "creator"
+ ├── ExternalVoice         imported from external ecosystem (future — reserved)
+ │    ├── resource_type    = "imported"
+ │    └── resource_origin  = "local_import" | "external_service"
+ └── GeneratedVoice        auto-generated catalog entry (future — reserved)
+      ├── resource_type    = "generated"
+      └── resource_origin  = "peakvox"
+
+VoiceResourceResponse      API-facing DTO — includes derived query-time state
+ ├── is_in_library         has this been imported as a Voice?
+ ├── library_voice_id      → Voice if imported
+ ├── compatible_models     from CompatibilityResolver
+ └── recommended_model_id  from CompatibilityResolver
 
 ModelDescriptor            inference engine contract
  ├── Capabilities          declared features (ADR-0003)
@@ -45,7 +61,9 @@ ModelDescriptor            inference engine contract
 | **VoiceVariant** | Per-model realization, build state machine | The voice identity, source audio, output audio |
 | **VoiceArtifact** | Versioned build outputs, retention policy | Which variant it belongs to, what model produced it |
 | **VoicePreview** | Playable audio samples, preview metadata | Source audio, variant artifacts |
-| **VoiceResource** | Catalog metadata, import status | Persistent identity, variants, artifacts |
+| **VoiceResource** | Catalog contract, resource metadata | Persistent identity, variants, artifacts |
+| **ProviderVoice** | Provider-native preset metadata, adapter identity | Library state, user data, Voice records |
+| **VoiceResourceResponse** | Derived query-time state (is_in_library, compatible_models) | Domain identity, persistence |
 | **ModelDescriptor** | Capability declaration, settings schema, build strategies | Voice data, user data |
 
 **The binding rule:** A VoiceVariant is **never** exposed on the public API. The public surface

@@ -236,37 +236,118 @@
 - Decision flowcharts: compatibility, preview rendering, type-aware display
 - Reference in AGENTS.md as mandatory reading for all future feature work
 
-## Phase H: VoiceResource Catalog (P3 — Future)
+## Phase H: VoiceResource Catalog (P3 — Foundation Pass)
 
-### H1 — Define VoiceResource transient type
+### H1 — Add `resource_origin` and `catalog_source` to `ProviderVoice` dataclass
 
-- API-facing type (not DB entity): resource_id, resource_type, name, description, language, previews, provider_metadata, compatible_models, is_in_library, library_voice_id
+- Add `resource_origin: str` field to `ProviderVoice` (defaults to `provider_id` for backward compat)
+- Add `catalog_source: dict[str, Any] | None` field to `ProviderVoice` (provenance metadata)
+- No DB changes — `ProviderVoice` is an in-memory dataclass
+- Backward compat: existing call sites continue to work with `resource_origin` defaulting
 
-### H2 — Unify provider presets as GET /voice-resources
+### H2 — Create `VoiceResource` catalog contract (typing only)
 
-- Adapter `list_provider_voices()` becomes the data source for `resource_type=preset`
-- Returns unified format: `VoiceResource` type
-- Includes `is_in_library` by checking if a Voice with same provider+preset exists
+- Define `VoiceResource` as a type alias / protocol / union representing all catalog sources
+- `ProviderVoice` is the first concrete implementation of this contract
+- No runtime changes — pure typing boundary
 
-### H3 — Create POST /voice-resources/{id}/import
+### H3 — Create `VoiceResourceResponse` Pydantic schema
 
-- Takes a VoiceResource (preset, marketplace listing, etc.)
-- Creates: Voice + VoiceVariant + Artifact + VoicePreviews (if previews exist)
-- Sets creation_source from resource_type mapping
-- Returns the created Voice
+- API-facing DTO: extends `VoiceResource` with derived fields
+- Fields: `id`, `resource_type`, `resource_origin`, `name`, `description`, `language`, `preview_audio_url`, `catalog_source`, `is_in_library`, `library_voice_id`, `compatible_models`, `recommended_model_id`
+- `is_in_library`, `library_voice_id`, `compatible_models`, `recommended_model_id` are computed at query time — never stored
 
-### H4 — Update frontend Voice Library with "Browse" tab
+### H4 — Create `VoiceResourceService` aggregation layer
 
-- Tab bar: "Library" | "Browse"
-- "Library" shows `GET /voices` (current behavior, with new type-aware cards)
-- "Browse" shows `GET /voice-resources`, grouped by resource_type
-- Each browse item has "Add to Library" action
+- Orchestrates `ProviderVoiceRegistry` (and future catalogs) into a single catalog view
+- Method: `list(filters) → list[VoiceResourceResponse]`
+- Method: `get(id) → VoiceResourceResponse | None`
+- Enriches each item with `is_in_library` / `library_voice_id` via DB cross-reference
+- Attaches `compatible_models` / `recommended_model_id` via `CompatibilityResolver`
+- Aggregation pattern: iterate registries → collect → enrich → return
 
-### H5 — Update existing POST /voices/from-preset
+### H5 — Implement `is_in_library` / `library_voice_id` derivation
 
-- Refactor to use the import boundary concept
-- Preset descriptor is a VoiceResource; import creates the Voice
-- Behavior is the same; internal boundary becomes explicit
+- Query-time DB cross-reference: `SELECT id FROM voice_profiles WHERE meta->>'provider' = ? AND meta->>'preset_name' = ?`
+- For each catalog item, set `is_in_library = True` and `library_voice_id = voice.id` when match found
+- Always current — no sync problem, no caching
+
+### H6 — Create `ImportResolver` — generic import pipeline
+
+- Input: `VoiceResourceResponse` (any subtype) + optional `model_id`
+- Resource-type agnostic — branches on model's `VariantBuildStrategy`, not on `resource_type`
+- Steps:
+  1. Validate `is_in_library == false` (reject double-import with 409 Conflict)
+  2. Determine model from `model_id` → `recommended_model_id` → first `compatible_models`
+  3. Map `resource_type → creation_source`:
+     - `"preset"` → `PRESET_VOICE`
+     - `"marketplace"` → `MARKETPLACE_VOICE`
+     - `"imported"` → `IMPORTED_VOICE`
+     - `"generated"` → `GENERATED_VOICE`
+  4. Create `VoiceProfile` with creation_source, name, language, meta from resource
+  5. Create `VoiceVariant` with type from adapter's `VariantBuildStrategy`
+  6. Create `VoiceVariantArtifact` (version 1)
+  7. Return `VoiceProfileResponse`
+
+### H7 — Implement `GET /voice-resources` endpoint
+
+- Query params: `resource_type`, `resource_origin`, `search`, `language`, `gender`
+- Delegates to `VoiceResourceService.list(filters)`
+- Returns `list[VoiceResourceResponse]`
+- Unified catalog view — replaces `GET /api/provider-voices` for the general case
+
+### H8 — Implement `POST /voice-resources/{id}/import` endpoint
+
+- Accepts: `{ "model_id": "..." }` (optional — uses recommended if absent)
+- Delegates to `ImportResolver.import(resource, model_id)`
+- Returns `VoiceProfileResponse` with HTTP 201
+- Rejects double-import with HTTP 409 Conflict
+
+### H9 — Wire backward compat: `POST /voices/from-preset` delegates to `ImportResolver`
+
+- Refactor `POST /voices/from-preset` to construct a `VoiceResourceResponse` from the lookup result
+- Call `ImportResolver.import(resource, body.model_id)`
+- Preserve exact same HTTP contract (status, response shape, error codes)
+- No frontend changes needed — same endpoint, same behavior
+
+### H10 — Wire backward compat: `GET /api/provider-voices` delegates to `VoiceResourceService`
+
+- Refactor `GET /api/provider-voices` to call `VoiceResourceService.list(resource_type="preset", ...)`
+- Map `VoiceResourceResponse` back to `ProviderVoiceResponse` for backward compat
+- Preserve exact same query param contract
+- No frontend changes needed
+
+### H11 — Update `VoiceDetailPanel` to accept `VoiceResourceResponse`
+
+- Extend `VoiceDetailPanelProps.voice` type to `VoiceProfile | VoiceResourceResponse | null`
+- Add "Import to Library" action for `VoiceResourceResponse` with `is_in_library == false`
+- No layout branching — same component renders both types
+- `VoiceResourceResponse` with `is_in_library == true` shows "Open in Library" action (redirects to library voice)
+
+### H12 — Update `PresetVoicesTab` to use new endpoints
+
+- Replace `fetchProviderVoices()` with `fetchVoiceResources({ resource_type: "preset" })`
+- Replace `createVoiceFromPreset()` with `importVoiceResource(id)`
+- Add `is_in_library` indicator on preset cards (already-imported state)
+- Keep same UX — use same loading/error/empty states
+
+### H13 — Add `VoiceResource` / `VoiceResourceResponse` frontend types
+
+- TypeScript interfaces for `VoiceResource` and `VoiceResourceResponse`
+- Type guard: `isVoiceResourceResponse(obj)`
+- Export from `@/types`
+
+### H14 — Update `STATUS.md` + `VALIDATION.md` + commit
+
+- Mark Phase H as IMPLEMENTED in STATUS.md
+- Check off validation criteria in VALIDATION.md
+- Commit with conventional commit message
+
+## Phase H Exclusions (Not Part of This Pass)
+
+- Browse tab in Voice Library (deferred — PresetVoicesTab remains the browsable surface for now)
+- MarketplaceVoice, ExternalVoice, GeneratedVoice subtypes (future reservations, no implementation)
+- Resource-type-specific import UI (import is always "Add to Library" via ImportResolver)
 
 ## Phase I: ADRs and Documentation (P3)
 

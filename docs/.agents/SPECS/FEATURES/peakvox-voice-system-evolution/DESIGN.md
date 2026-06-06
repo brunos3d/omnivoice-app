@@ -65,15 +65,29 @@ Catalog resources (provider presets, marketplace listings, import sources) are *
 
 **Consequences:**
 - `GET /voices` returns only library voices (persisted, owned, with variants).
-- `GET /voice-resources` returns catalog items (transient, not persisted) — **future, Phase H**.
+- `GET /voice-resources` returns catalog items (transient, not persisted) — **Phase H**.
 - The import boundary is explicit: importing a catalog resource creates a Voice.
 - `SOURCE_ASSET` voices are created directly via audio upload, NOT from a catalog resource.
 - Play button, duration, and preview logic check entity type before rendering.
+
+**Catalog contract vs concrete subtypes:**
+VoiceResource is a **catalog contract** — the interface every catalog source satisfies:
+- `ProviderVoice` (type="preset") — provider-native preset from adapter registries
+- `MarketplaceVoice` (type="marketplace") — marketplace listings (future, Cloud)
+- `ExternalVoice` (type="imported") — imported ecosystems (future)
+- `GeneratedVoice` (type="generated") — auto-generated entries (future)
+
+**Domain type vs Response DTO:**
+- `VoiceResource` (domain): pure catalog descriptor with no derived state. Contains `resource_type`, `resource_origin`, `name`, `description`, `language`, `preview_audio_url`, `catalog_source` metadata.
+- `VoiceResourceResponse` (API DTO): extends `VoiceResource` with derived query-time fields: `is_in_library`, `library_voice_id`, `compatible_models`, `recommended_model_id`.
 
 **Why NOT a single model:**
 - Browsing 10,000 marketplace listings should not create 10,000 Voice DB rows.
 - Catalog resources have different metadata than library voices (pricing, creator, etc.).
 - The six recent UI bugs (Infinity, AbortError, broken play, presets as clones) all trace to treating catalog items as library voices.
+
+**Import pipeline:**
+The `ImportResolver` is resource-type agnostic. It branches on the target model's `VariantBuildStrategy`, not on `resource_type`. The only type-aware operation is `resource_type → creation_source` mapping, which is a simple lookup table.
 
 ### D4: `CompatibilityResolver` as Canonical Source of Truth
 
@@ -200,7 +214,7 @@ The Voice Library is not merely a list view — it is the primary browsing surfa
 
 ### D10: VoiceDetailPanel — Canonical Voice Surface
 
-**The rule:** There is exactly one `VoiceDetailPanel` component. It accepts `Voice | VoiceResource`. It renders the same layout for every voice type. Sections collapse when data is unavailable.
+**The rule:** There is exactly one `VoiceDetailPanel` component. It accepts `VoiceProfile | VoiceResourceResponse`. It renders the same layout for every voice type. Sections collapse when data is unavailable.
 
 **Why a single component:**
 - Prevents the fragmentation that caused the six bug classes (presets treated as clones, missing previews, wrong badges, etc.).
@@ -211,8 +225,9 @@ The Voice Library is not merely a list view — it is the primary browsing surfa
 **Layout:** Header → Overview → Previews → Compatible Models → Variants → Actions. This order is the same for every voice type.
 
 **Action branching:** The component does not branch on voice type for layout. It branches only for action availability:
-- `Voice` → actions: Use in TTS, Export, Delete, Favorite
-- `VoiceResource` (not in library) → actions: Import to Library, Preview
+- `VoiceProfile` → actions: Use in TTS, Export, Delete, Favorite
+- `VoiceResourceResponse` (is_in_library == false) → actions: Import to Library, Preview
+- `VoiceResourceResponse` (is_in_library == true) → actions: Use in TTS (redirects to library voice), Open in Library
 
 ### D11: Primary Model and Recommended Model
 

@@ -325,36 +325,87 @@ def derive_preview_summary(previews: list[VoicePreview]) -> PreviewSummary:
 - Migration: existing `preview_audio` on Voice copies to `VoicePreview` with `preview_origin = "reference"` if `creation_source = SOURCE_ASSET`
 - API: `GET /voices/{id}/previews` returns all previews; `GET /voices/{id}/audio` returns the primary preview audio
 
-### 3.6 VoiceResource — Transient Catalog Type (Future, Phase H)
+### 3.6 VoiceResource — Catalog Contract (Phase H)
 
 **v1 recommendation:** No `VoiceResource` abstraction.
 
-**Refined:** `VoiceResource` is a transient API type to represent catalog-level entities before they are imported as library Voices. It is NOT a database entity. **This is a future concept (Phase H) — not needed for the initial implementation wave.**
+**Refined:** `VoiceResource` is a **catalog contract** — a transient API type defining the interface every catalog source must satisfy. It is NOT a database entity. It represents voice-like entities before they enter the user's library. **Phase H implementation.**
+
+`VoiceResource` has a concrete subtype hierarchy:
+
+```typescript
+// Catalog contract — each catalog source implements this shape.
+interface VoiceResource {
+  id: string;
+  resource_type: "preset" | "marketplace" | "imported" | "generated";
+  resource_origin: string;       // e.g. "kokoro", "fish", "community", "peakvox"
+  name: string;
+  description: string | null;
+  language: string | null;
+  preview_audio_url: string | null;
+  catalog_source: Record<string, any>;  // provenance metadata
+}
+
+// Response DTO — includes derived query-time state
+interface VoiceResourceResponse extends VoiceResource {
+  is_in_library: boolean;
+  library_voice_id: string | null;
+  compatible_models: string[];
+  recommended_model_id: string | null;
+}
+```
+
+**Concrete subtypes:**
+
+| Subtype | resource_type | resource_origin examples | Data Source |
+|---------|--------------|-------------------------|-------------|
+| `ProviderVoice` | `"preset"` | `"kokoro"`, `"piper"`, `"fish"` | Adapter `list_provider_voices()` |
+| `MarketplaceVoice` | `"marketplace"` | `"community"`, `"creator"` | Marketplace tables (Cloud, future) |
+| `ExternalVoice` | `"imported"` | `"local_import"`, `"external_service"` | Import pipeline (future) |
+| `GeneratedVoice` | `"generated"` | `"peakvox"` | Runtime generation (future) |
 
 **Important — SOURCE_ASSET is NOT a catalog resource:**
 A cloned voice (`creation_source = SOURCE_ASSET`) is created directly when a user uploads audio via `POST /voices`. There is no `VoiceResource` intermediary. The catalog→library boundary applies only to presets, marketplace listings, and other browsable resources.
 
+**Aggregation layer — VoiceResourceService:**
+
 ```typescript
-interface VoiceResource {
-  resource_id: string;                    // catalog-level ID
-  resource_type: "preset" | "marketplace" | "imported" | "generated";
-  name: string;
-  description: string | null;
-  language: string | null;
-  preview_audio_url: string | null;       // provider-supplied or null
-  provider_metadata: Record<string, any>;
-  compatible_models: string[];            // cached from adapter build strategies
-  is_in_library: boolean;                 // already imported?
-  library_voice_id: string | null;        // if imported, points to Voice
+class VoiceResourceService {
+  constructor(
+    private providerRegistry: ProviderVoiceRegistry,
+    // future: private marketplaceCatalog: MarketplaceCatalog,
+    // future: private externalCatalog: ExternalCatalog,
+  ) {}
+
+  async list(filters: VoiceResourceFilters): Promise<VoiceResourceResponse[]>;
+  async get(id: string): Promise<VoiceResourceResponse | null>;
 }
 ```
 
-**Endpoints (future, Phase H):**
-- `GET /voice-resources?resource_type=preset` — Browse provider presets
-- `GET /voice-resources?resource_type=marketplace` — Browse marketplace
-- `POST /voice-resources/{id}/import` — Import into library (creates Voice)
+The service aggregates all catalog sources, enriches each item with `is_in_library` / `library_voice_id` via DB cross-reference, and attaches `compatible_models` / `recommended_model_id` via `CompatibilityResolver`.
 
-The existing `GET /provider-voices` endpoint on provider adapters is the natural source for `resource_type=preset`. Marketplace listings come from marketplace tables.
+**Import pipeline — ImportResolver:**
+
+```typescript
+class ImportResolver {
+  async import(resource: VoiceResourceResponse, modelId?: string): Promise<VoiceProfile>;
+}
+```
+
+The `ImportResolver` is **resource-type agnostic**:
+1. Validates `is_in_library == false` (prevents double-import)
+2. Determines target model from `modelId` → `recommended_model_id` → first compatible
+3. Maps `resource_type → creation_source`: `"preset"` → `PRESET_VOICE`, etc.
+4. Creates `Voice` + `VoiceVariant` + `VoiceVariantArtifact`
+5. Returns the created `VoiceProfileResponse`
+
+The resolver branches only on the target model's `VariantBuildStrategy` for variant creation — never on `resource_type`.
+
+**Endpoints:**
+- `GET /voice-resources?resource_type=preset` — Browse provider presets (aggregated from all catalog sources)
+- `POST /voice-resources/{id}/import` — Import into library (creates Voice)
+- Backward compat: `GET /api/provider-voices` delegates to `GET /voice-resources?resource_type=preset`
+- Backward compat: `POST /voices/from-preset` delegates to `ImportResolver`
 
 ---
 

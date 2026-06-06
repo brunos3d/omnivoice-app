@@ -7,6 +7,8 @@ import { Plus, Library, Wand2, Pencil, Trash2, SlidersHorizontal } from "lucide-
 import { PageLayout } from "@/components/shell/PageLayout"
 import { PageHeader } from "@/components/shell/PageHeader"
 import { FilterBar } from "@/components/common/FilterBar"
+import { FilterChips } from "@/components/common/FilterChips"
+import { SortDropdown } from "@/components/common/SortDropdown"
 import { Chip } from "@/components/common/Chip"
 import { VariantDashboard } from "@/components/voice/VariantDashboard"
 import { PresetVoicesTab } from "@/components/voice/PresetVoicesTab"
@@ -23,7 +25,7 @@ import { useVoicesPage, useToggleFavorite } from "@/hooks/use-generation"
 import { useAppStore } from "@/store/use-store"
 import { deleteVoice, getVoiceAudioUrl } from "@/lib/api"
 import { formatDuration } from "@/lib/utils"
-import type { VoiceProfile, VoiceScope, VoiceQueryFilters, CreationSource } from "@/types"
+import type { VoiceProfile, VoiceScope, VoiceQueryFilters, CreationSource, SortField } from "@/types"
 
 const GENDERS = ["male", "female"]
 const AGE_GROUPS = ["child", "teen", "young", "adult", "elderly"]
@@ -61,13 +63,15 @@ export default function VoiceLibraryPage() {
   const [filters, setFilters] = useState<VoiceQueryFilters>(EMPTY_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
   const [creationSourceFilter, setCreationSourceFilter] = useState<CreationSource | null>(null)
+  const [sortBy, setSortBy] = useState<SortField>("last_used_at")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
   const [detailsVoice, setDetailsVoice] = useState<VoiceProfile | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [editVoice, setEditVoice] = useState<VoiceProfile | null>(null)
   const [editOpen, setEditOpen] = useState(false)
 
-  const query = useVoicesPage(scope, debouncedSearch, filters)
+  const query = useVoicesPage(scope, debouncedSearch, filters, sortBy, sortDir, creationSourceFilter ?? undefined)
   const voices = useMemo(
     () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data],
@@ -235,6 +239,12 @@ export default function VoiceLibraryPage() {
                   active={!!filters.favorite}
                   onClick={() => setFilter("favorite", !filters.favorite)}
                 />
+                <SortDropdown
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSortByChange={setSortBy}
+                  onSortDirChange={setSortDir}
+                />
                 <Button
                   variant={showFilters ? "secondary" : "outline"}
                   size="sm"
@@ -245,6 +255,29 @@ export default function VoiceLibraryPage() {
                   Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                 </Button>
               </FilterBar>
+
+              <FilterChips
+                chips={[
+                  ...(creationSourceFilter ? [{ key: "creation_source", label: `Source: ${creationSourceFilter}` }] : []),
+                  ...(filters.favorite ? [{ key: "favorite", label: "Favorites" }] : []),
+                  ...(filters.language_code ? [{ key: "language_code", label: `Language: ${filters.language_code}` }] : []),
+                  ...(filters.gender ? [{ key: "gender", label: `Gender: ${filters.gender}` }] : []),
+                  ...(filters.age_group ? [{ key: "age_group", label: `Age: ${filters.age_group}` }] : []),
+                  ...(filters.accent ? [{ key: "accent", label: `Accent: ${filters.accent}` }] : []),
+                ]}
+                onRemove={(key) => {
+                  if (key === "creation_source") setCreationSourceFilter(null)
+                  else if (key === "favorite") setFilter("favorite", false)
+                  else if (key === "language_code") setFilter("language_code", undefined)
+                  else if (key === "gender") setFilter("gender", undefined)
+                  else if (key === "age_group") setFilter("age_group", undefined)
+                  else if (key === "accent") setFilter("accent", undefined)
+                }}
+                onClearAll={() => {
+                  setCreationSourceFilter(null)
+                  setFilters(EMPTY_FILTERS)
+                }}
+              />
 
               {showFilters && (
                 <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -105,6 +105,12 @@ async def run_migrations(conn: AsyncConnection) -> None:
     # 10. Voice source asset table + backfill (ADR-0010).
     await _backfill_voice_source_assets(conn)
 
+    # 11. Voice previews table (Phase E).
+    await conn.run_sync(Base.metadata.create_all)
+
+    # 12. Backfill previews from existing voices.preview_audio (Phase E).
+    await _backfill_voice_previews(conn)
+
 
 async def _existing_voice_columns(conn: AsyncConnection) -> set[str]:
     res = await conn.execute(text("PRAGMA table_info(voice_profiles)"))
@@ -486,6 +492,43 @@ async def _backfill_voice_source_assets(conn: AsyncConnection) -> None:
                 "id": asset_id,
                 "voice_id": row["voice_id"],
                 "storage_key": f"voices/{row['voice_id']}/{audio_filename}",
+                "now": now,
+            },
+        )
+
+
+async def _backfill_voice_previews(conn: AsyncConnection) -> None:
+    """Create a VoicePreview row for every voice that has preview_audio set.
+    Idempotent: skips voice_ids already present in voice_previews."""
+    existing = await conn.execute(text("SELECT voice_id FROM voice_previews"))
+    already = {r[0] for r in existing.fetchall()}
+
+    rows = (
+        await conn.execute(
+            text(
+                "SELECT id, creation_source, preview_audio FROM voices "
+                "WHERE preview_audio IS NOT NULL AND preview_audio != ''"
+            )
+        )
+    ).mappings().all()
+
+    now = datetime.now(timezone.utc).isoformat()
+    for row in rows:
+        if row["id"] in already:
+            continue
+        origin = "provider" if row["creation_source"] == "PRESET_VOICE" else "reference"
+        preview_id = str(uuid.uuid4())
+        await conn.execute(
+            text(
+                "INSERT INTO voice_previews "
+                "(id, voice_id, preview_origin, storage_key, duration, created_at) "
+                "VALUES (:id, :voice_id, :origin, :storage_key, NULL, :now)"
+            ),
+            {
+                "id": preview_id,
+                "voice_id": row["id"],
+                "origin": origin,
+                "storage_key": row["preview_audio"],
                 "now": now,
             },
         )

@@ -271,6 +271,27 @@ class VoiceSourceAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class VoicePreview(Base):
+    """One preview recording for a voice.
+
+    A voice may have multiple previews (e.g. one per language, or one per model).
+    The ``preview_origin`` distinguishes *reference* (cloned from source asset),
+    *provider* (supplied by the voice provider), *generated* (TTS-generated),
+    *user* (user-uploaded), or *marketplace* (seller-provided).
+    """
+
+    __tablename__ = "voice_previews"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    voice_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    preview_origin: Mapped[str] = mapped_column(String(32), nullable=False)
+    language: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    duration: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 # ---------------------------------------------------------------------------
 # Schema-ready commercial entities (PeakVox).
 #

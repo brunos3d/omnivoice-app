@@ -19,12 +19,16 @@ from app.schemas.voice import (
     VoiceGenerationDefaults,
     VoiceListPage,
     VoiceProfileResponse,
+    PreviewSummary,
     VoiceSourceAssetResponse,
 )
+from app.schemas.voice_preview import VoicePreviewList, VoicePreviewResponse
 from app.services.voice_metadata import characteristics_from_defaults
 from app.services.voice_onboarding import delete_voice_split, mirror_profile_to_split
+from app.services.voice_preview_repository import get_preview_summary, list_previews
 from app.services.voice_repository import (
     VALID_SCOPES,
+    VALID_SORT_FIELDS,
     list_voices_page,
     set_favorite,
 )
@@ -43,6 +47,21 @@ from app.utils.streaming import stream_object
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _enrich_preview_summary(
+    db: AsyncSession,
+    responses: list[VoiceProfileResponse],
+) -> None:
+    """Overwrite heuristic ``preview_summary`` with DB-backed values from VoicePreview records."""
+    for resp in responses:
+        origin, count, languages = await get_preview_summary(db, resp.id)
+        if origin != "none":
+            resp.preview_summary = PreviewSummary(
+                origin=origin,
+                count=count,
+                languages=languages,
+            )
 
 
 async def _enrich_compatibility(
@@ -181,6 +200,7 @@ async def list_voices(db: AsyncSession = Depends(get_db)):
             resp.source_asset = VoiceSourceAssetResponse.model_validate(sa)
         responses.append(resp)
     await _enrich_compatibility(db, responses)
+    await _enrich_preview_summary(db, responses)
     return responses
 
 
@@ -195,11 +215,17 @@ async def list_voices_page_endpoint(
     favorite: Optional[bool] = None,
     limit: int = 24,
     cursor: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = "desc",
+    creation_source: Optional[str] = None,
+    provider: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Paginated, filtered, searchable listing that powers the Voice Library."""
     if scope not in VALID_SCOPES:
         raise HTTPException(status_code=422, detail=f"Invalid scope: {scope}")
+    if sort_by and sort_by not in VALID_SORT_FIELDS:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by}")
     items, next_cursor = await list_voices_page(
         db,
         scope=scope,
@@ -211,6 +237,10 @@ async def list_voices_page_endpoint(
         favorite=favorite,
         limit=limit,
         cursor=cursor,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        creation_source=creation_source,
+        provider=provider,
     )
     asset_map = await _fetch_source_asset_map(db, [v.id for v in items])
     responses = []
@@ -221,6 +251,7 @@ async def list_voices_page_endpoint(
             resp.source_asset = VoiceSourceAssetResponse.model_validate(sa)
         responses.append(resp)
     await _enrich_compatibility(db, responses)
+    await _enrich_preview_summary(db, responses)
     return VoiceListPage(
         items=responses,
         next_cursor=next_cursor,
@@ -240,7 +271,25 @@ async def get_voice(profile_id: str, db: AsyncSession = Depends(get_db)):
     if source_asset:
         resp.source_asset = VoiceSourceAssetResponse.model_validate(source_asset)
     await _enrich_compatibility(db, [resp])
+    await _enrich_preview_summary(db, [resp])
     return resp
+
+
+@router.get("/{profile_id}/previews", response_model=VoicePreviewList)
+async def list_voice_previews(
+    profile_id: str,
+    language: Optional[str] = None,
+    preview_origin: Optional[str] = None,
+    source_model_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all previews for a voice, optionally filtered."""
+    profile = await db.get(VoiceProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+    previews = await list_previews(db, profile_id, language=language, preview_origin=preview_origin, source_model_id=source_model_id)
+    items = [VoicePreviewResponse.model_validate(p) for p in previews]
+    return VoicePreviewList(items=items)
 
 
 @router.get("/{profile_id}/audio")

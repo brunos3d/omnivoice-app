@@ -101,6 +101,23 @@ export interface VoiceQueryFilters {
   favorite?: boolean
 }
 
+export interface VoicePreview {
+  id: string
+  voice_id: string
+  preview_origin: string
+  language: string | null
+  source_model_id: string | null
+  storage_key: string
+  duration: number | null
+  created_at: string
+}
+
+export interface VoicePreviewList {
+  items: VoicePreview[]
+}
+
+export type SortField = "name" | "created_at" | "last_used_at" | "language" | "usage_count"
+
 export interface VoiceListPage {
   items: VoiceProfile[]
   next_cursor: string | null

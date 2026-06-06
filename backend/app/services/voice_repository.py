@@ -6,7 +6,7 @@ both lookups so future API work has a single entry point.
 """
 
 import base64
-from typing import Optional
+from typing import Literal, Optional
 
 from sqlalchemy import String, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,9 @@ from app.core.config import settings
 from app.models.db import VoiceProfile
 
 VALID_SCOPES = ("mine", "recent", "community", "preset")
+VALID_SORT_FIELDS = ("name", "created_at", "last_used_at", "language", "usage_count")
+SortField = Literal["name", "created_at", "last_used_at", "language", "usage_count"]
+SortDir = Literal["asc", "desc"]
 
 
 async def get_voice_by_public_id(
@@ -72,13 +75,17 @@ async def list_voices_page(
     favorite: Optional[bool] = None,
     limit: int = 24,
     cursor: Optional[str] = None,
+    sort_by: Optional[SortField] = None,
+    sort_dir: SortDir = "desc",
+    creation_source: Optional[str] = None,
+    provider: Optional[str] = None,
 ) -> tuple[list[VoiceProfile], Optional[str]]:
     """Paginated, filtered, searchable voice listing.
 
     Returns ``(items, next_cursor)``. The cursor is an opaque offset token today; the
     contract is keyset-ready so the internals can change without affecting callers.
     """
-    limit = max(1, min(limit, 100))
+    limit_val = max(1, min(limit, 100))
     offset = _decode_cursor(cursor)
 
     stmt = select(VoiceProfile)
@@ -107,6 +114,13 @@ async def list_voices_page(
         stmt = stmt.where(_characteristic("accent") == accent)
     if favorite:
         stmt = stmt.where(VoiceProfile.is_favorite.is_(True))
+    if creation_source:
+        if creation_source == "PRESET_VOICE":
+            stmt = stmt.where(VoiceProfile.is_preset_voice.is_(True))
+        elif creation_source == "SOURCE_ASSET":
+            stmt = stmt.where(VoiceProfile.is_preset_voice.is_(False))
+    if provider:
+        stmt = stmt.where(func.json_extract(VoiceProfile.meta, "$.provider") == provider)
 
     # Search across name/language/code + characteristics & preset_tags (raw JSON LIKE).
     if search and search.strip():
@@ -121,18 +135,30 @@ async def list_voices_page(
             )
         )
 
-    # Ordering — recent by usage, everything else by recency of creation.
-    if scope == "recent":
-        stmt = stmt.order_by(VoiceProfile.last_used_at.desc(), VoiceProfile.id.desc())
+    # Sorting.
+    sort_col = None
+    if sort_by == "name":
+        sort_col = VoiceProfile.name
+    elif sort_by == "last_used_at":
+        sort_col = VoiceProfile.last_used_at
+    elif sort_by == "language":
+        sort_col = VoiceProfile.language_code
+    elif sort_by == "usage_count":
+        sort_col = VoiceProfile.usage_count
     else:
-        stmt = stmt.order_by(VoiceProfile.created_at.desc(), VoiceProfile.id.desc())
+        sort_col = VoiceProfile.created_at
+
+    if sort_dir == "asc":
+        stmt = stmt.order_by(sort_col.asc().nullslast(), VoiceProfile.id.asc())
+    else:
+        stmt = stmt.order_by(sort_col.desc().nullslast(), VoiceProfile.id.desc())
 
     # Fetch one extra row to detect whether another page exists.
-    stmt = stmt.offset(offset).limit(limit + 1)
+    stmt = stmt.offset(offset).limit(limit_val + 1)
     rows = list((await db.execute(stmt)).scalars().all())
 
-    next_cursor = _encode_cursor(offset + limit) if len(rows) > limit else None
-    return rows[:limit], next_cursor
+    next_cursor = _encode_cursor(offset + limit_val) if len(rows) > limit_val else None
+    return rows[:limit_val], next_cursor
 
 
 async def set_favorite(

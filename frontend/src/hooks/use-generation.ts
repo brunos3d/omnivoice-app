@@ -20,6 +20,7 @@ import type {
   VoiceProfile,
   VoiceListPage,
   VoiceScope,
+  SortField,
   VoiceQueryFilters,
   ModelStatus,
 } from "@/types";
@@ -44,15 +45,21 @@ export function useVoicesPage(
   scope: VoiceScope,
   search: string,
   filters: VoiceQueryFilters,
+  sort_by?: SortField,
+  sort_dir?: "asc" | "desc",
+  creation_source?: string,
 ) {
   return useInfiniteQuery<VoiceListPage>({
-    queryKey: ["voices-page", scope, search, filters],
+    queryKey: ["voices-page", scope, search, filters, sort_by, sort_dir, creation_source],
     queryFn: ({ pageParam }) =>
       fetchVoicesPage({
         scope,
         search,
         filters,
         cursor: pageParam as string | null,
+        sort_by,
+        sort_dir,
+        creation_source,
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,

@@ -157,7 +157,9 @@ async def create_generation_job(
         voice_entity = await db.get(Voice, raw_voice_id)
         if voice_entity:
             ref_audio_key = await resolve_voice_audio_key(voice_entity.id)
-            if not ref_audio_key:
+            # Only models that need reference audio require it (OmniVoice, Fish Audio).
+            # Kokoro presets and voice_pack realizations never have reference audio.
+            if not ref_audio_key and model.capabilities.supports_reference_audio:
                 raise HTTPException(status_code=404, detail="Voice audio file not found")
             resolved_profile_name = voice_entity.name
             job_voice_id, job_variant_id = await resolve_variant_stamp(
@@ -187,7 +189,7 @@ async def create_generation_job(
             if not profile:
                 raise HTTPException(status_code=404, detail="Voice profile not found")
             ref_audio_key = await resolve_voice_audio_key(profile.id)
-            if not ref_audio_key:
+            if not ref_audio_key and model.capabilities.supports_reference_audio:
                 raise HTTPException(status_code=404, detail="Voice profile audio file not found")
             profile.last_used_at = datetime.now(timezone.utc)
             profile.usage_count = (profile.usage_count or 0) + 1

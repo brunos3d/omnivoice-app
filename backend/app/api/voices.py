@@ -230,9 +230,23 @@ async def get_voice_audio(profile_id: str, request: Request, db: AsyncSession = 
     if not profile:
         raise HTTPException(status_code=404, detail="Voice profile not found")
     key = await resolve_voice_audio_key(profile.id)
-    if not key:
-        raise HTTPException(status_code=404, detail="Audio file not found")
-    return await stream_object(key, request=request, content_type="audio/wav")
+    if key:
+        return await stream_object(key, request=request, content_type="audio/wav")
+    # No reference audio — return silence. Some voice types (e.g. Kokoro presets)
+    # have no reference audio file; this endpoint exists for UI preview, and a
+    # silent WAV is better than a 404 that breaks the HTML5 audio element.
+    import io
+    import wave
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(b"")  # zero-length silence
+    buf.seek(0)
+    from fastapi.responses import Response
+    return Response(content=buf.getvalue(), media_type="audio/wav")
 
 
 @router.post("", response_model=VoiceProfileResponse, status_code=201)

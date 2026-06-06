@@ -122,15 +122,17 @@ export function VoiceCard({
             />
           </Button>
         )}
-        <Button
-          variant="secondary"
-          size="icon"
-          className="h-8 w-8 shrink-0 rounded-full"
-          onClick={togglePreview}
-          title={playing ? "Pause preview" : "Preview"}
-        >
-          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-        </Button>
+        {(voice.audio_duration ?? 0) > 0 && (
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-8 w-8 shrink-0 rounded-full"
+            onClick={togglePreview}
+            title={playing ? "Pause preview" : "Preview"}
+          >
+            {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center justify-between">
@@ -184,6 +186,7 @@ export function VoiceCard({
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
+        onError={() => setPlaying(false)}
         className="hidden"
       />
     </div>

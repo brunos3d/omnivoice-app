@@ -184,9 +184,6 @@ async def v1_text_to_speech(
     voice = await get_voice_by_public_id(db, payload.voiceId)
     if voice is None:
         raise HTTPException(status_code=404, detail="Voice not found")
-    ref_key = await resolve_voice_audio_key(voice.id)
-    if not ref_key:
-        raise HTTPException(status_code=404, detail="Voice audio not found")
 
     # Resolve the model (None = platform default).
     try:
@@ -195,6 +192,11 @@ async def v1_text_to_speech(
         raise HTTPException(status_code=404, detail=f"Model '{payload.modelId}' not found")
     if model.activation_status != "active":
         raise HTTPException(status_code=409, detail=f"Model '{model.id}' is not available")
+
+    ref_key = await resolve_voice_audio_key(voice.id)
+    # Only models that need reference audio require it.
+    if not ref_key and model.capabilities.supports_reference_audio:
+        raise HTTPException(status_code=404, detail="Voice audio not found")
 
     # Apply the voice's saved defaults so the API matches in-app behavior (Sub-project E).
     defaults = voice.generation_defaults or {}

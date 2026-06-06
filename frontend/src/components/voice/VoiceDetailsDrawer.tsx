@@ -117,7 +117,9 @@ export function VoiceDetailsDrawer({ voice, open, onOpenChange, onUse, onEdit, o
                     </button>
                   </div>
 
-                  <AudioPlayer audioUrl={getVoiceAudioUrl(voice.id)} title="Reference audio" duration={voice.audio_duration} />
+                  {(voice.audio_duration ?? 0) > 0 && (
+                    <AudioPlayer audioUrl={getVoiceAudioUrl(voice.id)} title="Reference audio" duration={voice.audio_duration} />
+                  )}
 
                   {voice.description && (
                     <div className="space-y-1">

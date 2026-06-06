@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, get_db
-from app.models.db import GenerationJob, Voice, VoiceProfile
+from app.models.db import GenerationJob, Voice, VoiceProfile, VoiceVariant
 from app.schemas.job import GenerationRequest, JobResponse
 from app.services.runtime import (
     runtime,
@@ -173,6 +173,15 @@ async def create_generation_job(
                         f"Please build the variant in the Voice Library first."
                     ),
                 )
+
+            # Resolve variant params (e.g., preset_name for Kokoro) so they flow
+            # through to the adapter at inference time. Variant params are model-
+            # specific and orthogonal to user-supplied generation settings.
+            variant_params_extra: dict = {}
+            if job_variant_id:
+                variant = await db.get(VoiceVariant, job_variant_id)
+                if variant and variant.params:
+                    variant_params_extra = dict(variant.params)
         elif request.voice_profile_id:
             profile = await db.get(VoiceProfile, request.voice_profile_id)
             if not profile:
@@ -192,6 +201,9 @@ async def create_generation_job(
     gen_params = request.model_dump(
         exclude={"text", "model_id", "voice_profile_id", "voice_id", "ref_text", "language", "instruct"}
     )
+    if variant_params_extra:
+        # Variant params first so user-supplied gen params override conflicts.
+        gen_params = {**variant_params_extra, **gen_params}
 
     output_key = f"generated/{os.urandom(8).hex()}.wav"
 

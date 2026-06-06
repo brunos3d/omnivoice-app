@@ -212,7 +212,7 @@ class KokoroAdapter(ModelAdapter, ProviderVoiceCatalog):
         import soundfile as sf
         import numpy as np
 
-        preset = voice_profile_id or voice_id or "af_heart"
+        preset = (params or {}).get("preset_name") or voice_profile_id or voice_id or "af_heart"
         pipeline = self._get_kokoro_pipeline(preset)
         generator = pipeline(text, voice=preset)
 

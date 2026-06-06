@@ -322,6 +322,44 @@ async def test_generate_without_voice_falls_back_to_default(mock_kokoro, adapter
 
 
 @patch("app.services.model_adapters.kokoro_adapter._kokoro_mod")
+async def test_generate_uses_preset_name_from_params_over_voice_profile_id(mock_kokoro, adapter, tmp_path):
+    """params.preset_name takes priority over voice_profile_id (the primary fix path)."""
+    mock_pipeline = MagicMock()
+    mock_kokoro.KPipeline.return_value = mock_pipeline
+    mock_generator = iter([("hi", "HH AY", _mock_audio(24000))])
+    mock_pipeline.return_value = mock_generator
+    output = tmp_path / "out.wav"
+
+    await adapter.generate(
+        text="hello", output_path=output,
+        voice_profile_id="some-uuid-that-is-not-a-preset",
+        params={"preset_name": "af_bella"},
+    )
+
+    call_kwargs = mock_pipeline.call_args[1]
+    assert call_kwargs.get("voice") == "af_bella"
+
+
+@patch("app.services.model_adapters.kokoro_adapter._kokoro_mod")
+async def test_generate_ignores_params_preset_name_when_empty(mock_kokoro, adapter, tmp_path):
+    """Empty preset_name in params should not override voice_profile_id."""
+    mock_pipeline = MagicMock()
+    mock_kokoro.KPipeline.return_value = mock_pipeline
+    mock_generator = iter([("hi", "HH AY", _mock_audio(24000))])
+    mock_pipeline.return_value = mock_generator
+    output = tmp_path / "out.wav"
+
+    await adapter.generate(
+        text="hello", output_path=output,
+        voice_profile_id="af_heart",
+        params={"preset_name": ""},
+    )
+
+    call_kwargs = mock_pipeline.call_args[1]
+    assert call_kwargs.get("voice") == "af_heart"
+
+
+@patch("app.services.model_adapters.kokoro_adapter._kokoro_mod")
 async def test_generate_handles_multiple_chunks(mock_kokoro, adapter, tmp_path):
     mock_pipeline = MagicMock()
     mock_kokoro.KPipeline.return_value = mock_pipeline

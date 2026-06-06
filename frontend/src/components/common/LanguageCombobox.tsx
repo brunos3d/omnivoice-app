@@ -28,6 +28,8 @@ interface LanguageComboboxProps {
   includeAuto?: boolean
   disabled?: boolean
   className?: string
+  /** When set, only show languages whose id is in this list. Empty = show all. */
+  availableLanguageIds?: string[]
 }
 
 const AUTO_VALUE = "__auto__"
@@ -51,11 +53,32 @@ export function LanguageCombobox({
   includeAuto = true,
   disabled,
   className,
+  availableLanguageIds,
 }: LanguageComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
 
   const selected = getLanguageById(value)
+
+  const filteredCommon = useMemo(
+    () =>
+      availableLanguageIds
+        ? COMMON_LANGUAGES.filter((l) => availableLanguageIds.includes(l.id))
+        : COMMON_LANGUAGES,
+    [availableLanguageIds],
+  )
+
+  const filteredAll = useMemo(
+    () =>
+      availableLanguageIds
+        ? ALL_LANGUAGES_SORTED.filter((l) => availableLanguageIds.includes(l.id))
+        : ALL_LANGUAGES_SORTED,
+    [availableLanguageIds],
+  )
+
+  const placeholder = availableLanguageIds
+    ? `Search ${filteredAll.length} languages…`
+    : "Search 646 languages…"
 
   // "Common" duplicates entries that also appear in "All languages"; cmdk needs unique
   // item values, so the common group's items use a prefixed value.
@@ -97,7 +120,7 @@ export function LanguageCombobox({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" align="start">
         <Command loop>
           <CommandInput
-            placeholder="Search 646 languages…"
+            placeholder={placeholder}
             value={search}
             onValueChange={setSearch}
           />
@@ -124,8 +147,9 @@ export function LanguageCombobox({
               </CommandGroup>
             )}
 
+            {filteredCommon.length > 0 && (
             <CommandGroup heading="Common">
-              {COMMON_LANGUAGES.map((lang) => (
+              {filteredCommon.map((lang) => (
                 <CommandItem
                   key={`common-${lang.id}`}
                   value={`common:${lang.id}`}
@@ -139,9 +163,11 @@ export function LanguageCombobox({
                 </CommandItem>
               ))}
             </CommandGroup>
+            )}
 
+            {filteredAll.length > 0 && (
             <CommandGroup heading="All languages">
-              {ALL_LANGUAGES_SORTED.map((lang) => (
+              {filteredAll.map((lang) => (
                 <CommandItem
                   key={lang.id}
                   value={lang.id}
@@ -155,6 +181,7 @@ export function LanguageCombobox({
                 </CommandItem>
               ))}
             </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

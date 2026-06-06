@@ -23,7 +23,7 @@ import { useVoicesPage, useToggleFavorite } from "@/hooks/use-generation"
 import { useAppStore } from "@/store/use-store"
 import { deleteVoice, getVoiceAudioUrl } from "@/lib/api"
 import { formatDuration } from "@/lib/utils"
-import type { VoiceProfile, VoiceScope, VoiceQueryFilters } from "@/types"
+import type { VoiceProfile, VoiceScope, VoiceQueryFilters, CreationSource } from "@/types"
 
 const GENDERS = ["male", "female"]
 const AGE_GROUPS = ["child", "teen", "young", "adult", "elderly"]
@@ -60,6 +60,7 @@ export default function VoiceLibraryPage() {
   const debouncedSearch = useDebouncedValue(search)
   const [filters, setFilters] = useState<VoiceQueryFilters>(EMPTY_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
+  const [creationSourceFilter, setCreationSourceFilter] = useState<CreationSource | null>(null)
 
   const [detailsVoice, setDetailsVoice] = useState<VoiceProfile | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -71,6 +72,22 @@ export default function VoiceLibraryPage() {
     () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data],
   )
+
+  const filteredVoices = useMemo(
+    () =>
+      creationSourceFilter
+        ? voices.filter((v) => v.creation_source === creationSourceFilter)
+        : voices,
+    [voices, creationSourceFilter],
+  )
+
+  const creationSourceCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: voices.length }
+    for (const v of voices) {
+      counts[v.creation_source] = (counts[v.creation_source] ?? 0) + 1
+    }
+    return counts
+  }, [voices])
 
   const toggleFavorite = useToggleFavorite()
   const deleteMutation = useMutation({
@@ -191,6 +208,29 @@ export default function VoiceLibraryPage() {
             <>
               <FilterBar search={search} onSearchChange={setSearch} placeholder="Search voices…">
                 <Chip
+                  label="All"
+                  active={!creationSourceFilter && !filters.favorite}
+                  onClick={() => setCreationSourceFilter(null)}
+                />
+                <Chip
+                  label={`Cloned (${creationSourceCounts["SOURCE_ASSET"] ?? 0})`}
+                  active={creationSourceFilter === "SOURCE_ASSET"}
+                  onClick={() =>
+                    setCreationSourceFilter(
+                      creationSourceFilter === "SOURCE_ASSET" ? null : "SOURCE_ASSET",
+                    )
+                  }
+                />
+                <Chip
+                  label={`Preset (${creationSourceCounts["PRESET_VOICE"] ?? 0})`}
+                  active={creationSourceFilter === "PRESET_VOICE"}
+                  onClick={() =>
+                    setCreationSourceFilter(
+                      creationSourceFilter === "PRESET_VOICE" ? null : "PRESET_VOICE",
+                    )
+                  }
+                />
+                <Chip
                   label="Favorites"
                   active={!!filters.favorite}
                   onClick={() => setFilter("favorite", !filters.favorite)}
@@ -247,14 +287,16 @@ export default function VoiceLibraryPage() {
                 </div>
               )}
 
-              {!query.isLoading && voices.length === 0 ? (
+              {!query.isLoading && filteredVoices.length === 0 ? (
                 <EmptyState
                   icon={Library}
-                  title={scope === "recent" ? "No recently used voices" : "No matching voices"}
+                  title={creationSourceFilter ? `No ${creationSourceFilter.toLowerCase().replace("_", " ")} voices` : scope === "recent" ? "No recently used voices" : "No matching voices"}
                   description={
-                    scope === "recent"
-                      ? "Voices you generate with will appear here."
-                      : "Try adjusting your search or filters, or create a new voice."
+                    creationSourceFilter
+                      ? "Try switching filters or create a new voice."
+                      : scope === "recent"
+                        ? "Voices you generate with will appear here."
+                        : "Try adjusting your search or filters, or create a new voice."
                   }
                   action={
                     <Button asChild className="gap-2"><Link href="/clone"><Plus className="h-4 w-4" /> Create voice</Link></Button>
@@ -263,7 +305,7 @@ export default function VoiceLibraryPage() {
               ) : (
                 <>
                   <VoiceGrid
-                    voices={voices}
+                    voices={filteredVoices}
                     loading={query.isLoading}
                     selectedId={selectedProfile?.id}
                     onSelect={setSelectedProfile}

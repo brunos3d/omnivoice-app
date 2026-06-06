@@ -1,23 +1,43 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
-import { Mic, ChevronRight, Plus, Search } from "lucide-react"
+import { Mic, ChevronRight, Plus, Search, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { VoiceCard } from "@/components/voice/VoiceCard"
 import { EmptyState } from "@/components/common/EmptyState"
 import { useAppStore } from "@/store/use-store"
+import { useActiveModel } from "@/hooks/use-models"
 
 export function VoiceSelector() {
   const voices = useAppStore((s) => s.voices)
   const selected = useAppStore((s) => s.selectedProfile)
   const setSelectedProfile = useAppStore((s) => s.setSelectedProfile)
+  const { activeModel } = useActiveModel()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
 
-  const filtered = voices.filter((v) => v.name.toLowerCase().includes(query.toLowerCase()))
+  const { compatible, notCompatible } = useMemo(() => {
+    if (!activeModel) {
+      return { compatible: voices, notCompatible: [] as typeof voices }
+    }
+    const comp: typeof voices = []
+    const not: typeof voices = []
+    for (const v of voices) {
+      if (v.compatible_models.includes(activeModel.id)) {
+        comp.push(v)
+      } else {
+        not.push(v)
+      }
+    }
+    return { compatible: comp, notCompatible: not }
+  }, [voices, activeModel])
+
+  const nameFilter = (v: typeof voices[0]) => v.name.toLowerCase().includes(query.toLowerCase())
+  const filteredCompatible = compatible.filter(nameFilter)
+  const filteredNotCompatible = notCompatible.filter(nameFilter)
 
   return (
     <div className="space-y-2">
@@ -31,7 +51,11 @@ export function VoiceSelector() {
             <div className="min-w-0 flex-1">
               <p className="text-card-title truncate">{selected ? selected.name : "Select a voice"}</p>
               <p className="text-caption truncate">
-                {selected ? [selected.language, "Cloned voice"].filter(Boolean).join(" · ") : "Choose from your library"}
+                {selected
+                  ? [selected.language, "Cloned voice"].filter(Boolean).join(" · ")
+                  : activeModel
+                    ? `${compatible.length} compatible · ${voices.length} total`
+                    : `${voices.length} voice${voices.length !== 1 ? "s" : ""}`}
               </p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -51,10 +75,19 @@ export function VoiceSelector() {
                 className="pl-9"
               />
             </div>
+            {activeModel && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Showing {filteredCompatible.length} compatible with{" "}
+                <span className="font-medium text-foreground">{activeModel.name}</span>
+                {filteredNotCompatible.length > 0 && (
+                  <span> · {filteredNotCompatible.length} hidden</span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {filtered.length > 0 ? (
-              filtered.map((voice) => (
+            {filteredCompatible.length > 0 ? (
+              filteredCompatible.map((voice) => (
                 <VoiceCard
                   key={voice.id}
                   voice={voice}
@@ -65,6 +98,25 @@ export function VoiceSelector() {
                   }}
                 />
               ))
+            ) : query ? (
+              <EmptyState
+                icon={Search}
+                title="No matching voices"
+                description="Try a different search term."
+              />
+            ) : activeModel ? (
+              <EmptyState
+                icon={AlertCircle}
+                title="No compatible voices"
+                description={`No voices are compatible with ${activeModel.name}. Try selecting a different model.`}
+                action={
+                  <Button asChild className="gap-2">
+                    <Link href="/clone" onClick={() => setOpen(false)}>
+                      <Plus className="h-4 w-4" /> Create voice
+                    </Link>
+                  </Button>
+                }
+              />
             ) : (
               <EmptyState
                 icon={Mic}

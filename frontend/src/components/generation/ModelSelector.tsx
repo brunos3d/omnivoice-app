@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Cpu, ChevronRight, Search, Loader2 } from "lucide-react";
+import { Cpu, ChevronRight, Search, Loader2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -14,7 +14,12 @@ import { ModelCard } from "@/components/generation/ModelCard";
 import { useAppStore } from "@/store/use-store";
 import { useModels } from "@/hooks/use-models";
 
-export function ModelSelector() {
+interface ModelSelectorProps {
+  /** When set, only show models whose id is in this list. */
+  compatibleModelIds?: string[];
+}
+
+export function ModelSelector({ compatibleModelIds }: ModelSelectorProps) {
   const selectedModelId = useAppStore((s) => s.selectedModelId);
   const setSelectedModelId = useAppStore((s) => s.setSelectedModelId);
   const { data: models, isLoading } = useModels();
@@ -25,13 +30,24 @@ export function ModelSelector() {
     ? models?.find((m) => m.id === selectedModelId)
     : models?.find((m) => m.is_default);
 
-  const filtered = (models ?? [])
-    .filter((m) => m.activation_status === "active")
-    .filter(
-      (m) =>
-        m.name.toLowerCase().includes(query.toLowerCase()) ||
-        m.description.toLowerCase().includes(query.toLowerCase()),
+  const activeModels = (models ?? []).filter(
+    (m) => m.activation_status === "active",
+  );
+
+  const showFiltered =
+    compatibleModelIds && compatibleModelIds.length > 0;
+
+  const filtered = activeModels.filter((m) => {
+    if (showFiltered && !compatibleModelIds.includes(m.id)) return false;
+    return (
+      m.name.toLowerCase().includes(query.toLowerCase()) ||
+      m.description.toLowerCase().includes(query.toLowerCase())
     );
+  });
+
+  const hiddenCount = showFiltered
+    ? activeModels.filter((m) => !compatibleModelIds.includes(m.id)).length
+    : 0;
 
   const statusLabel = active?.status === "loaded" || active?.status === "available"
     ? undefined
@@ -81,6 +97,12 @@ export function ModelSelector() {
                 className="pl-9"
               />
             </div>
+            {showFiltered && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                {filtered.length} compatible
+                {hiddenCount > 0 && ` · ${hiddenCount} incompatible (hidden)`}
+              </p>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isLoading ? (
@@ -101,6 +123,11 @@ export function ModelSelector() {
                   }}
                 />
               ))
+            ) : showFiltered ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                <AlertCircle className="mx-auto mb-2 h-5 w-5" />
+                No compatible models for the selected voice.
+              </div>
             ) : (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 No models match your search.

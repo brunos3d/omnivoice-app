@@ -38,6 +38,13 @@ export function GenerationPanel() {
   const modelReady = !!model?.loaded;
   const isGenerating = generate.isPending || !!activeJobId;
 
+  const selectedVoiceCompatibleModels = selectedProfile?.compatible_models ?? null;
+  const selectedModelIncompatible =
+    selectedProfile &&
+    activeModel &&
+    selectedVoiceCompatibleModels &&
+    !selectedVoiceCompatibleModels.includes(activeModel.id);
+
   const tagIssues = activeModel
     ? validateTags(text, activeModel.supported_tags)
     : [];
@@ -96,7 +103,11 @@ export function GenerationPanel() {
               </span>
             </AccordionTrigger>
             <AccordionContent className="px-5 py-1 mb-4">
-              <ModelSelector />
+              <ModelSelector
+                compatibleModelIds={
+                  selectedVoiceCompatibleModels ?? undefined
+                }
+              />
             </AccordionContent>
           </AccordionItem>
 
@@ -166,6 +177,11 @@ export function GenerationPanel() {
               <LanguageCombobox
                 value={language}
                 onChange={(lang) => setLanguage(lang?.id ?? null)}
+                availableLanguageIds={
+                  activeModel?.supported_languages?.length
+                    ? activeModel.supported_languages
+                    : undefined
+                }
               />
             </AccordionContent>
           </AccordionItem>
@@ -211,6 +227,15 @@ export function GenerationPanel() {
             <AlertCircle className="h-4 w-4 shrink-0" />
             {(generate.error as Error)?.message ??
               "Generation failed. Please try again."}
+          </p>
+        )}
+
+        {selectedModelIncompatible && (
+          <p className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            This voice is not compatible with{" "}
+            <span className="font-medium">{activeModel?.name}</span>.
+            Select a different model or voice.
           </p>
         )}
 

@@ -72,6 +72,14 @@ def _decode_json(value, fallback):
 
 
 def _descriptor_from_row(row) -> ModelDescriptor:
+    # `settings_schema` is a static catalog property (changes when the model's
+    # upstream weights change, not when lifecycle status changes) so it is
+    # not persisted in the `models` table. For built-in models we re-attach
+    # the schema from BUILTIN_MODELS here so the runtime registry matches the
+    # catalog. Community / user-installed models that want to override the
+    # schema can populate it via a future column; for now they fall back to
+    # an empty schema (= no configurable controls).
+    builtin = next((m for m in BUILTIN_MODELS if m.id == row["id"]), None)
     return ModelDescriptor(
         id=row["id"],
         name=row["name"],
@@ -95,6 +103,7 @@ def _descriptor_from_row(row) -> ModelDescriptor:
         is_default=bool(row["is_default"]),
         is_builtin=bool(row["is_builtin"]),
         editions=_decode_json(row["editions"], ["community"]),
+        settings_schema=builtin.settings_schema if builtin is not None else None,
     )
 
 

@@ -6,22 +6,17 @@
 **As of:** 2026-06-07
 
 - **Current focus:** Phase 2 implementation. ADR-0016 (Accepted) +
-  ADR-0017 (Accepted) are the architectural baseline. Architecture
-  review passed (0 blocking issues; non-blocking suggestions
-  applied: Runtime Persistence added as Decision 12; ADR_INDEX /
-  IMPLEMENTATION_STATUS consistency fixed). Sub-phase **2A —
-  Foundations** is the next P0 work item. Existing in-process
-  model execution continues unchanged.
+  ADR-0017 (Accepted) are the architectural baseline. **Sub-phase
+  2A is COMPLETE (2026-06-07):** 9 new modules + 9 test files
+  delivered; 76 new tests, 0 regressions, 401 pre-existing
+  tests pass. The next sub-phase is **2B (DockerRuntimeDriver)**.
 - **Current branch:** `feat/peakvox-phase-1`
-- **Working tree:** clean — this commit accepts ADR-0017,
-  resolves `OPEN_DECISIONS.md` Decision 10, adds Decision 12
-  (Runtime Persistence — future ADR), and updates state files
-  (PROJECT_STATE, NEXT_TASK, CURRENT_CONTEXT, ACTIVE_WORK,
-  ROADMAP/*, ADR_INDEX, IMPLEMENTATION_STATUS, OPEN_DECISIONS).
-  No code, no migrations, no `runtime-registry/` directory, no
-  `RuntimeManager` / `RuntimeDriver` / `RuntimeDescriptor` class,
-  no `HTTPTransport`, no `KokoroAdapter` modification, no new
-  API endpoints, no Docker integration, no Kokoro migration code.
+- **Working tree:** clean — this commit lands the Phase 2A
+  implementation: 5 new modules in `backend/app/services/` and
+  4 modified/new test files (76 new tests, 401/401 pre-existing
+  tests pass). Plus state file updates (IMPLEMENTATION_STATUS,
+  NEXT_TASK, CURRENT_CONTEXT, ACTIVE_WORK, PROJECT_STATE,
+  ROADMAP/*).
 - **Current ADRs in play:** ADR-0008/0009/0010/0011/0012
   (variant lifecycle, artifacts, source assets, creation
   sources, catalog resources) — the surface touched by the
@@ -33,12 +28,13 @@
   `docs/.agents/SPECS/FEATURES/runtime-services-implementation/`
   (ADR-0017), plus existing specs.
 - **Current blockers:** Fish Audio real inference deferred
-  (codec/VRAM); no GPU in CI. These predate ADR-0016 and are
+  (codec/VRAM); no GPU in CI. These predate Phase 2A and are
   unaffected.
 - **Current validation goal:** Sub-phase 2A is implementation
-  (architecture + unit tests). Sub-phase 2C is the first
-  provider-validated runtime-service migration (Kokoro + runtime
-  service E2E).
+  (architecture + unit tests). Sub-phase 2B introduces the
+  first concrete driver (mocked in tests). Sub-phase 2C is the
+  first provider-validated runtime-service migration (Kokoro +
+  runtime service E2E).
 
 ---
 

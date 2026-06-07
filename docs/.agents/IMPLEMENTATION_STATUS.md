@@ -66,6 +66,35 @@ provider validation.
 | Auto routing (`model="auto"`) | NOT_STARTED | metadata-readiness assessed only; no router |
 | Async build queue | NOT_STARTED (deferred) | ADR-0008 Option 3; CE builds are synchronous |
 
+### Phase 2A — Runtime Services Foundations (IMPLEMENTED 2026-06-07)
+
+Phase 2A is **infrastructure foundation work** — no model is migrated, no
+runtime is activated, no Docker integration is introduced. The driver is
+not yet wired; in 2A the `RuntimeManager.resolve()` returns `None` and the
+existing in-process path is taken unchanged. See
+[`SPECS/FEATURES/runtime-services-implementation/TASKS.md` §2A](../SPECS/FEATURES/runtime-services-implementation/TASKS.md)
+for the full task breakdown.
+
+| Component | Status | Evidence |
+|---|---|---|
+| `RuntimeDescriptor` (Pydantic) | IMPLEMENTED | `app/services/runtime_types.py`; `tests/test_runtime_descriptor.py` (12 tests) — schema validation, DNS-label id, capability vocabulary, edition subset, sha256 digest, model_dump round-trip |
+| `RuntimeInstance` (frozen dataclass) | IMPLEMENTED | `app/services/runtime_instance.py`; `tests/test_runtime_instance.py` (7 tests) — 7 RuntimeState values, 3 HealthState values, frozen ImageIdentity, equality |
+| `HealthReport` / `Metrics` | IMPLEMENTED | `app/services/runtime_types.py`; `tests/test_runtime_health.py` (6 tests) — liveness/readiness enums, frozen report, empty Metrics |
+| `RuntimeDriverError` hierarchy (8 subclasses) | IMPLEMENTED | `app/services/runtime_errors.py`; `tests/test_runtime_errors.py` (8 tests) — RuntimeNotFound, ImagePullError, SubstrateError, RuntimeAlreadyExists, RuntimeNotActive, TimeoutError, RuntimeRequirementsNotMet, RuntimeHealthFailed |
+| `RuntimeDriver` Protocol (10 operations) | IMPLEMENTED | `app/services/runtime_driver.py`; `tests/test_runtime_driver_protocol.py` (3 tests) — `runtime_checkable`, structural conformance, rejects missing methods |
+| `RuntimeRegistry` + `RuntimeRegistryLoader` | IMPLEMENTED | `app/services/runtime_registry.py`; `tests/test_runtime_registry.py` (10 tests) — indexes by id/model_id/capability, file walking, path-traversal guard, malformed-descriptor tolerance |
+| `RuntimeEventBus` | IMPLEMENTED | `app/services/runtime_events.py`; `tests/test_runtime_events.py` (8 tests) — publish/subscribe, in-order dispatch, exception isolation, canonical event vocabulary (12 event types) |
+| `RuntimeManager` skeleton | IMPLEMENTED | `app/services/runtime_manager.py`; `tests/test_runtime_manager.py` (11 tests) — orchestration only (no `generate`/`infer`/`load_weights` method), `resolve()` returns `None` in 2A, lifecycle operations raise `NoDriverConfigured` when no driver wired, event publication, in-process path preserved |
+| PeakVoxRuntime bridge integration | IMPLEMENTED | `app/services/runtime.py` (`attach_runtime_manager` + bridge block in `generate`); `tests/test_runtime_routing_phase2.py` (10 tests) — transitional pass-through only; `Voice → VoiceVariant → Active Artifact → RuntimeManager (skeleton) → Adapter → existing inference path`; behavior unchanged in 2A; the 2C+ runtime-service branch is a documented-but-unreachable literal `pass` |
+
+**Phase 2A architectural invariants (verified per the 2A gate checklist):**
+- No `import docker` in `backend/app/services/runtime*.py` or `runtime.py`.
+- No model framework imports (`torch`, `transformers`, `kokoro`, `f5_tts`, `fish_audio`) in runtime modules.
+- No HTTP client imports (`requests`, `httpx`, `aiohttp`) in runtime modules.
+- No runtime activation: `DockerRuntimeDriver` is introduced in sub-phase 2B.
+- No Runtime Service communication: `HTTPTransport` is introduced in sub-phase 2C.
+- No behavior regressions: full backend test suite (excluding pre-existing numpy/torch-dependent files) is 401 passed (was 374 before Phase 2 implementation began; +27 new tests for Phase 2A across 9 test files; all 52 pre-existing runtime tests continue to pass).
+
 ## C. Voice / data layer
 
 | Subsystem | Status | Evidence |

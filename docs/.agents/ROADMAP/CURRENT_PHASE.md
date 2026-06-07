@@ -28,14 +28,14 @@ only.
 
 ### In progress
 
-- **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).** TDD
+- **Runtime-Service migration — Phase 2 Sub-phase 2B (`DockerRuntimeDriver`).** TDD
   tasks in
-  [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
+  [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2B.
 
-> ## ⚠ PHASE 2 IMPLEMENTATION GUARDRAIL — RESOLVED
+> ## ⚠ PHASE 2 IMPLEMENTATION GUARDRAIL — RESOLVED FOR SUB-PHASE 2A
 >
-> **ADR-0017 is Accepted (2026-06-07).** Phase 2 implementation
-> may begin. The previous guardrail is no longer in force.
+> **Sub-phase 2A is COMPLETE (2026-06-07).** Phase 2 implementation
+> may continue; the next sub-phase is 2B (`DockerRuntimeDriver`).
 >
 > **Current state (2026-06-07):**
 > - ADR-0016 (architecture): **Accepted** (2026-06-07).
@@ -43,25 +43,30 @@ only.
 >   (2026-06-07). Architecture review: 0 blocking issues;
 >   non-blocking suggestions applied (Runtime Persistence →
 >   `OPEN_DECISIONS.md` Decision 12).
-> - Sub-phase 2A (Foundations): **ready to start**. TDD tasks
->   in
->   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
-> - Sub-phases 2B, 2C, 2D: sequenced behind 2A.
+> - Sub-phase 2A (Foundations): **✅ Complete.** 9 new modules +
+>   9 test files; 76 new tests; 401/401 pre-existing tests pass;
+>   no Docker integration, no Runtime Service communication, no
+>   model framework imports, no HTTP clients. `PeakVoxRuntime`
+>   bridge is a transitional pass-through; behavior unchanged in
+>   2A. See
+>   [`../IMPLEMENTATION_STATUS.md` §"Phase 2A — Runtime Services
+>   Foundations"](../IMPLEMENTATION_STATUS.md).
+> - Sub-phase 2B (`DockerRuntimeDriver`): **ready to start**.
+>   TDD tasks in
+>   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2B.
+> - Sub-phases 2C, 2D: sequenced behind 2B.
 >
-> Sub-phase 2A may begin. TDD-shaped tasks:
+> Sub-phase 2A ✅ done. Sub-phase 2B may begin. TDD-shaped tasks:
 >
 > | # | Component | File | Test |
 > |---|---|---|---|
-> | 2A.1 | `RuntimeDescriptor` Pydantic | `backend/app/services/runtime_types.py` | `tests/test_runtime_descriptor.py` |
-> | 2A.2 | `RuntimeInstance` | `backend/app/services/runtime_instance.py` | `tests/test_runtime_instance.py` |
-> | 2A.3 | `HealthReport` / `Metrics` | `backend/app/services/runtime_types.py` | `tests/test_runtime_health.py` |
-> | 2A.4 | `RuntimeDriverError` hierarchy | `backend/app/services/runtime_errors.py` | `tests/test_runtime_errors.py` |
-> | 2A.5 | `RuntimeDriver` Protocol | `backend/app/services/runtime_driver.py` | `tests/test_runtime_driver_protocol.py` |
-> | 2A.6 | `RuntimeRegistryLoader` | `backend/app/services/runtime_registry.py` | `tests/test_runtime_registry.py` |
-> | 2A.7 | `RuntimeEventBus` | `backend/app/services/runtime_events.py` | `tests/test_runtime_events.py` |
-> | 2A.8 | `RuntimeManager` skeleton | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager.py` |
-> | 2A.9 | Status updates | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link |
-> | 2A.10 | `PeakVoxRuntime` integration | `backend/app/services/runtime.py` | `tests/test_runtime_routing_phase2.py` |
+> | 2B.1 | `DockerRuntimeDriver` skeleton | `backend/app/services/drivers/docker_runtime_driver.py` | `tests/test_docker_runtime_driver.py` |
+> | 2B.2 | `install_runtime` impl | … | idempotency, ImagePullError on 404, SubstrateError on daemon failure, default 300s timeout |
+> | 2B.3 | `start_runtime` + readiness probe | … | container started; `/ready` polled; success → `Active`/`Ready`; timeout → `Failed`/`RuntimeHealthFailed` |
+> | 2B.4 | `stop_runtime`, `restart_runtime`, `update_runtime`, `remove_runtime`, `runtime_status`, `runtime_logs`, `runtime_health`, `runtime_metrics` | … | per-operation semantics from ADR-0017 §4.3 |
+> | 2B.5 | `scripts/lint_no_docker_outside_driver.py` | `scripts/` | AST scan: `import docker` outside driver pkg is a violation |
+> | 2B.6 | Wire `DockerRuntimeDriver` into `RuntimeManager` | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager_with_docker.py` |
+> | 2B.7 | Status updates | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link |
 
 ### The gate before Cloud work
 

@@ -15,16 +15,23 @@
    [`../SPECS/FEATURES/runtime-services-implementation/`](../SPECS/FEATURES/runtime-services-implementation/).
    Architecture review: 0 blocking issues. Non-blocking suggestions applied
    (Runtime Persistence → `OPEN_DECISIONS.md` Decision 12).
-4. **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).** TDD-shaped
-   tasks in
-   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
-   First P0 work item: `RuntimeDescriptor`, `RuntimeInstance`, `HealthReport`/`Metrics`,
-   `RuntimeDriverError`, `RuntimeDriver` Protocol, `RuntimeRegistryLoader`,
-   `RuntimeEventBus`, `RuntimeManager` skeleton, status updates,
-   `PeakVoxRuntime` integration.
-5. **Runtime-Service migration — Sub-phases 2B, 2C, 2D** (Docker driver; HTTPTransport +
-   Kokoro integration; CE operations). Sequenced behind 2A.
-6. **Runtime-Service migration — Phases 3–7** (Kokoro, F5-TTS, Fish, OmniVoice migrations,
+4. ~~**Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).**~~ ✅
+   **Complete 2026-06-07.** 9 new modules + 9 test files (76 new tests);
+   401/401 pre-existing tests pass; no Docker integration, no
+   Runtime Service communication, no model framework imports, no
+   HTTP clients. `PeakVoxRuntime` bridge is a transitional
+   pass-through; behavior unchanged in 2A. See
+   [`IMPLEMENTATION_STATUS.md` §"Phase 2A — Runtime Services
+   Foundations"](../IMPLEMENTATION_STATUS.md).
+5. **Runtime-Service migration — Phase 2 Sub-phase 2B (`DockerRuntimeDriver`).**
+   TDD tasks in
+   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2B.
+   First P0 work item: `DockerRuntimeDriver` skeleton; install/start/stop/etc.
+   implementations; `lint_no_docker_outside_driver.py` AST check; wire into
+   `RuntimeManager`; status updates.
+6. **Runtime-Service migration — Sub-phases 2C, 2D** (HTTPTransport + Kokoro
+   integration; CE operations). Sequenced behind 2B.
+7. **Runtime-Service migration — Phases 3–7** (Kokoro, F5-TTS, Fish, OmniVoice migrations,
    in-process path removal). Sequenced behind Phase 2.
 
 ## P1 — CE hardening (can proceed in parallel with Phase 2)

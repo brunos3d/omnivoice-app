@@ -3,15 +3,18 @@
 > Single source of truth for overall project state. Objective facts only. No emojis, no
 > subjective language. Update this file whenever phase, priorities, risks, or blockers change.
 
-**Last update:** 2026-06-07 (ADR-0017 Accepted; Decision 10 RESOLVED; Decision 12 added for Runtime Persistence; state files updated; sub-phase 2A is the next P0 work item)
+**Last update:** 2026-06-07 (Phase 2 Sub-phase 2A — Foundations — COMPLETE: 9 new modules + 9 test files; 76 new tests, 0 regressions, 401 pre-existing tests pass; no Docker, no Runtime Service communication, no model framework imports; sub-phase 2B is the next P0 work item)
 **Branch:** `feat/peakvox-phase-1`
 **Edition target:** Community Edition (CE). Cloud is schema-ready, not implemented.
 **Cloud readiness gate:** ✅ OPEN — Kokoro validated as first non-OmniVoice provider (G5 passed).
 **Architecture direction:** ADR-0016 (Models as Runtime Services) Accepted 2026-06-07;
-ADR-0017 (Runtime Services Implementation — Phase 2 architecture) **Accepted** 2026-06-07.
+ADR-0017 (Runtime Services Implementation — Phase 2 architecture) Accepted 2026-06-07.
 The Runtime-Service architecture is the agreed target; migration is sequenced across
-7 phases. Phase 1 (ADR + design) and the Phase 2 implementation architecture are
-complete. Phase 2 implementation sub-phases 2A → 2B → 2C → 2D may begin.
+7 phases. Phase 1 (ADR + design) is complete. Phase 2 Sub-phase 2A (Foundations:
+`RuntimeDescriptor`, `RuntimeInstance`, `HealthReport`/`Metrics`, `RuntimeDriverError`,
+`RuntimeDriver` Protocol, `RuntimeRegistry`/`Loader`, `RuntimeEventBus`,
+`RuntimeManager` skeleton, `PeakVoxRuntime` bridge) is **complete**. Sub-phase 2B
+(`DockerRuntimeDriver`) is the next P0 work item.
 
 ---
 
@@ -22,9 +25,9 @@ PeakVox Phase 1 (Platform Foundations) through Phase 3.11 are built. The CE spin
 Kokoro provider validation is complete (G5 passed — real audio generated E2E through
 the Runtime; see `VALIDATION/PROVIDER_VALIDATIONS/kokoro-validation-report.md`).
 Active focus: Phase 2 implementation. ADR-0016 (architecture) is Accepted;
-ADR-0017 (Phase 2 implementation architecture) is **Accepted**. Phase 1 and the
-Phase 2 architecture are complete. Phase 2 implementation sub-phases
-2A → 2B → 2C → 2D may begin. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md)
+ADR-0017 (Phase 2 implementation architecture) is Accepted. Phase 2 Sub-phase 2A
+(Foundations) is **complete** (2026-06-07). Sub-phase 2B (`DockerRuntimeDriver`)
+is the next P0 work item. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md)
 and [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md).
 
 ## Current priorities
@@ -39,11 +42,15 @@ and [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md).
    deliverables and resolves the 5 deferred open questions from
    `OPEN_DECISIONS.md` Decision 10 (now RESOLVED). Architecture review: 0 blocking
    issues; non-blocking suggestions applied.
-4. **Next workstream:** begin **sub-phase 2A** (Foundations:
-   `RuntimeDescriptor`, `RuntimeRegistry`, `RuntimeManager`, `RuntimeDriver` protocol,
-   `RuntimeInstance`, `RuntimeEventBus`). This preempts Cloud work; the Runtime-Service
-   target is the same for CE and Cloud (Article V §14), so investing in Phase 2
-   unblocks both editions.
+4. ✅ **Sub-phase 2A (Foundations) complete.** 9 new modules + 9 test files; 76 new
+   tests, 0 regressions, 401 pre-existing tests pass; no Docker integration, no
+   Runtime Service communication, no model framework imports, no HTTP clients in
+   the new modules; the `PeakVoxRuntime` bridge is a transitional pass-through that
+   preserves existing in-process generation behavior.
+5. **Next workstream:** begin **sub-phase 2B** (`DockerRuntimeDriver` first concrete
+   driver + `lint_no_docker_outside_driver.py` AST check + wiring into
+   `RuntimeManager`). The `PeakVoxRuntime` bridge is in place; the 2C+ runtime-service
+   path becomes reachable when 2B's driver is wired in.
 
 ## Implemented components (architecture-validated; see IMPLEMENTATION_STATUS for evidence)
 

@@ -5,62 +5,77 @@
 
 **As of:** 2026-06-07
 
-## Task: Phase 2 Sub-phase 2A — Foundations (RuntimeDescriptor, RuntimeRegistry, RuntimeManager, RuntimeDriver protocol, RuntimeInstance, RuntimeEventBus)
+> ## ⚠ PHASE 2 GUARDRAIL — RESOLVED FOR SUB-PHASE 2A
+>
+> **Sub-phase 2A of the Runtime-Service migration is COMPLETE
+> (2026-06-07).** ADR-0016 + ADR-0017 are Accepted; 2A delivered
+> 9 new modules + 9 test files (76 new tests, 0 regressions).
+> The previous guardrail ("may not begin until ADR-0017 is
+> Accepted") is satisfied for 2A; the next sub-phase (2B) may
+> begin per the same architecture.
+>
+> **Sub-phase 2B is now the active work item.** 2B is the first
+> sub-phase that introduces substrate-specific code
+> (`DockerRuntimeDriver`); it is gated on the architecture
+> review guardrail: "If any task requires activating runtimes,
+> communicating with containers, performing inference routing,
+> or introducing DockerRuntimeDriver behavior, stop and create
+> a review checkpoint because that belongs to later phases."
 
-- **Priority:** P0. Phase 2 implementation may now begin.
-- **Status:** **Ready to start.** ADR-0016 (Accepted) + ADR-0017
-  (Accepted) are the architectural baseline. Architecture review
-  passed (0 blocking issues; non-blocking suggestions applied).
-- **Architecture review result:** ACCEPT.
-  - ADR-0017 package: architecturally sound, internally consistent,
-    Constitution-aligned, domain integrity preserved.
-  - Non-blocking suggestions applied:
-    1. **Runtime Persistence** — added as a future ADR
-       ([`OPEN_DECISIONS.md` Decision 12](OPEN_DECISIONS.md)). Not
-       blocking.
-    2. **ADR_INDEX / IMPLEMENTATION_STATUS consistency** — ADR-0017
-       status flipped from `Proposed` to `Accepted`; implementation
-       status is `APPROVED` (architecture approved, no code yet),
-       consistent with the ADR-0016 pattern.
-- **Sub-phase 2A plan** (TDD per task, from
-  [`SPECS/FEATURES/runtime-services-implementation/TASKS.md`](SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A):
+## Task: Phase 2 Sub-phase 2B — DockerRuntimeDriver + lint_no_docker_outside_driver.py
+
+- **Priority:** P0. Phase 2 implementation is in flight; 2A is
+  complete; 2B is the next sub-phase.
+- **Status:** **Ready to start.** Sub-phase 2A is complete
+  (2026-06-07); 9 new modules + 9 test files delivered; 76 new
+  tests; 401/401 pre-existing tests continue to pass; no
+  regressions, no Docker integration, no Runtime Service
+  communication, no model framework imports, no HTTP clients
+  in the new modules.
+- **Architecture review guardrail:** 2B is exactly the sub-phase
+  that the guardrail was written for. Introducing
+  `DockerRuntimeDriver` is gated on the architecture review.
+  No code may be written for 2B until the review is passed (it
+  was, in TASK 11).
+- **Sub-phase 2B plan** (TDD per task, from
+  [`SPECS/FEATURES/runtime-services-implementation/TASKS.md`](SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2B):
 
   | Task | Component | File | Test |
   |---|---|---|---|
-  | 2A.1 | `RuntimeDescriptor` Pydantic model | `backend/app/services/runtime_types.py` | `tests/test_runtime_descriptor.py` |
-  | 2A.2 | `RuntimeInstance` frozen dataclass | `backend/app/services/runtime_instance.py` | `tests/test_runtime_instance.py` |
-  | 2A.3 | `HealthReport` and `Metrics` frozen dataclasses | `backend/app/services/runtime_types.py` | `tests/test_runtime_health.py` |
-  | 2A.4 | `RuntimeDriverError` hierarchy (8 subclasses) | `backend/app/services/runtime_errors.py` | `tests/test_runtime_errors.py` |
-  | 2A.5 | `RuntimeDriver` Protocol (10 operations) | `backend/app/services/runtime_driver.py` | `tests/test_runtime_driver_protocol.py` |
-  | 2A.6 | `RuntimeRegistryLoader` (file-based discovery + indexes) | `backend/app/services/runtime_registry.py` | `tests/test_runtime_registry.py` |
-  | 2A.7 | `RuntimeEventBus` adapter (publishes to `app.core.events`) | `backend/app/services/runtime_events.py` | `tests/test_runtime_events.py` |
-  | 2A.8 | `RuntimeManager` skeleton (orchestration only) | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager.py` |
-  | 2A.9 | Update `IMPLEMENTATION_STATUS.md` (2A components IN_PROGRESS) | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link check |
-  | 2A.10 | `PeakVoxRuntime` integration with `RuntimeManager.resolve` | `backend/app/services/runtime.py` | `tests/test_runtime_routing_phase2.py` |
+  | 2B.1 | `DockerRuntimeDriver` skeleton | `backend/app/services/drivers/__init__.py`, `…/docker_runtime_driver.py` | `tests/test_docker_runtime_driver.py` |
+  | 2B.2 | `install_runtime` impl | … | idempotency, ImagePullError on 404, SubstrateError on daemon failure, default 300s timeout |
+  | 2B.3 | `start_runtime` + readiness probe | … | container started; `/ready` polled at `lifecycle.health_interval_seconds`; success → `state=Active`, `health_state=Ready`; timeout → `state=Failed`, `RuntimeHealthFailed` |
+  | 2B.4 | `stop_runtime`, `restart_runtime`, `update_runtime`, `remove_runtime`, `runtime_status`, `runtime_logs`, `runtime_health`, `runtime_metrics` | … | per-operation semantics from ADR-0017 §4.3; `runtime_metrics` returns `Metrics()` empty for first version |
+  | 2B.5 | `scripts/lint_no_docker_outside_driver.py` | `scripts/` | AST scan: `import docker` outside `backend/app/services/drivers/` is a violation; runs in CI |
+  | 2B.6 | Wire `DockerRuntimeDriver` into `RuntimeManager` | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager_with_docker.py` |
+  | 2B.7 | Update `IMPLEMENTATION_STATUS.md` | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link check |
 
-- **Definition of done — Sub-phase 2A:**
-  - All 10 tasks complete; tests green.
-  - `RuntimeManager` orchestrates; `RuntimeDriver` protocol is the
-    only seam.
+- **Definition of done — Sub-phase 2B:**
+  - `DockerRuntimeDriver` is the first concrete driver; the
+    `RuntimeManager` depends on it through the `RuntimeDriver`
+    protocol only.
+  - The `lint_no_docker_outside_driver.py` script is in CI.
+  - The Docker SDK import is confined to the driver package.
+  - No `runtime-registry/` directory created (still); runtime
+    descriptors are loaded from a configured path.
   - No new API endpoints yet.
-  - No `runtime-registry/` directory created (the registry loader
-    reads from a configured path; the path may be empty).
   - Existing in-process model execution **continues to work
-    unchanged** when `RuntimeManager` is not wired (regression).
+    unchanged** (regression: all 401 pre-existing tests still
+    pass).
 
-- **Sub-phases 2B, 2C, 2D** (sequenced behind 2A, not in flight):
-  - **2B** — `DockerRuntimeDriver` + `lint_no_docker_outside_driver.py`
-  - **2C** — `HTTPTransport` + `KokoroAdapter` `KOKORO_RUNTIME_URL` path
+- **Sub-phases 2C, 2D** (sequenced behind 2B, not in flight):
+  - **2C** — `HTTPTransport` + `KokoroAdapter` `KOKORO_RUNTIME_URL`
+    path (additive; in-process fallback).
   - **2D** — CE operations (install/activate/update/remove) +
-    `runtime-registry/` with Kokoro descriptor
+    `runtime-registry/` with Kokoro descriptor.
 
 - **Provider-validation status (unchanged):** Kokoro G5 ✅. Fish
   Audio S2 Pro still blocked on hardware. OmniVoice Base E2E
   audio test would be nice; no GPU in CI.
-- **Cloud readiness gate:** still OPEN. ADR-0017 is the gateway
-  to CE hardening and Cloud architecture planning (the
+- **Cloud readiness gate:** still OPEN. 2A → 2B unblocks both CE
+  hardening and Cloud architecture planning (the
   `KubernetesRuntimeDriver` lands as Decision 11's separate ADR).
-- **Next:** begin sub-phase 2A.
+- **Next:** begin sub-phase 2B with strict TDD.
 
 ---
 

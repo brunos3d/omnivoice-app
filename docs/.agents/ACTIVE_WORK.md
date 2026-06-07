@@ -9,14 +9,14 @@
 
 ## In flight
 
-1. **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).**
+1. **Runtime-Service migration — Phase 2 Sub-phase 2B (DockerRuntimeDriver).**
    **Ready to start.** TDD-shaped tasks in
-   [`docs/.agents/SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
-   The 10 tasks are: `RuntimeDescriptor`, `RuntimeInstance`,
-   `HealthReport`/`Metrics`, `RuntimeDriverError` hierarchy,
-   `RuntimeDriver` Protocol, `RuntimeRegistryLoader`,
-   `RuntimeEventBus`, `RuntimeManager` skeleton, status updates,
-   and `PeakVoxRuntime` integration.
+   [`docs/.agents/SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2B.
+   The 7 tasks are: `DockerRuntimeDriver` skeleton; `install_runtime`
+   implementation; `start_runtime` + readiness probe; lifecycle
+   operations (stop / restart / update / remove / status / logs /
+   health / metrics); `lint_no_docker_outside_driver.py` AST
+   check; wire driver into `RuntimeManager`; status updates.
 
 ## Not in flight (recently completed)
 
@@ -28,6 +28,18 @@
   `OPEN_DECISIONS.md` Decision 12; ADR_INDEX/IMPLEMENTATION_STATUS
   consistency fixed). `OPEN_DECISIONS.md` Decision 10 is RESOLVED.
   See `docs/.agents/SPECS/FEATURES/runtime-services-implementation/`.
+- **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).** ✅
+  **Complete 2026-06-07.** 9 new modules + 9 test files delivered:
+  `RuntimeDescriptor` (12 tests), `RuntimeInstance` (7),
+  `HealthReport`/`Metrics` (6), `RuntimeDriverError` (8),
+  `RuntimeDriver` Protocol (3), `RuntimeRegistry`/`Loader`
+  (10), `RuntimeEventBus` (8), `RuntimeManager` skeleton (11),
+  `PeakVoxRuntime` bridge integration (10). 76 new tests, 0
+  regressions, 401 pre-existing tests pass. No Docker integration,
+  no model framework imports, no HTTP client imports, no runtime
+  activation, no Runtime Service communication. The
+  `PeakVoxRuntime` bridge is a transitional pass-through; behavior
+  is unchanged in 2A.
 - **Validation reports and state cleanup.** Kokoro provider validation complete (G5 passed).
 - **Kokoro Preset Voice Adapter (Phase 1 + 2).** Complete. 54 presets, catalog-only registry,
   metadata-only build_variant, Preset Voices tab.
@@ -37,7 +49,7 @@
 
 ## Not in flight (explicitly paused)
 
-- **Sub-phases 2B, 2C, 2D** of the Runtime-Service migration — sequenced behind 2A.
+- **Sub-phases 2C, 2D** of the Runtime-Service migration — sequenced behind 2B.
 - **Phases 3–7 of the Runtime-Service migration** (Kokoro, F5-TTS, Fish, OmniVoice
   migrations, in-process path removal). Sequenced behind Phase 2.
 - **Cloud phases** (auth/billing/creators/marketplace) — held behind the provider-validation

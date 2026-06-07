@@ -123,6 +123,41 @@ export interface VoiceListPage {
   next_cursor: string | null
 }
 
+export interface TemporaryVoice {
+  id: string
+  source_resource_id: string
+  name: string
+  language: string | null
+  language_code: string | null
+  compatible_models: string[]
+  preview_summary: PreviewSummary
+  creation_source: CreationSource
+  meta: Record<string, unknown> | null
+  isTemporary: true
+  transcript: null
+  audio_duration: null
+  generation_defaults: null
+  preview_audio_url: string | null
+  provider_id: string | null
+  gender: string | null
+  description: string | null
+  status: "ready"
+  is_favorite: false
+  is_public: false
+  is_preset_voice: true
+  usage_count: 0
+}
+
+export type AnyVoice = VoiceProfile | TemporaryVoice
+
+export function isTemporaryVoice(voice: VoiceProfile | TemporaryVoice | null): voice is TemporaryVoice {
+  return voice !== null && "isTemporary" in voice && voice.isTemporary === true
+}
+
+export function isVoiceProfile(voice: VoiceProfile | TemporaryVoice | null): voice is VoiceProfile {
+  return voice !== null && !("isTemporary" in voice)
+}
+
 export interface GenerationRequest {
   text: string
   /** Optional model selector. null/undefined falls back to the platform default. */

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { Wand2, Loader2, AlertCircle, Cpu, Mic } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Wand2, Loader2, AlertCircle, Cpu, Mic, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoiceSelector } from "@/components/voice/VoiceSelector";
 import { ModelSelector } from "@/components/generation/ModelSelector";
@@ -16,15 +16,19 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { useAppStore } from "@/store/use-store";
+import { useAppStore, useActiveVoice } from "@/store/use-store";
 import { useSubmitGeneration, useModelStatus } from "@/hooks/use-generation";
-import { useActiveModel, useModels } from "@/hooks/use-models";
+import { useActiveModel } from "@/hooks/use-models";
+import { useQueryClient } from "@tanstack/react-query";
 import { buildInstruct } from "@/config/voice-design";
 import { validateTags } from "@/editor/validate";
+import { importVoiceResource } from "@/lib/api";
 
 export function GenerationPanel() {
   const text = useAppStore((s) => s.ttsText);
   const selectedProfile = useAppStore((s) => s.selectedProfile);
+  const temporaryVoice = useAppStore((s) => s.temporaryVoice);
+  const promoteTemporaryToPersisted = useAppStore((s) => s.promoteTemporaryToPersisted);
   const generationSettings = useAppStore((s) => s.generationSettings);
   const voiceDesign = useAppStore((s) => s.voiceDesign);
   const setVoiceDesign = useAppStore((s) => s.setVoiceDesign);
@@ -35,23 +39,26 @@ export function GenerationPanel() {
   const setSelectedModelId = useAppStore((s) => s.setSelectedModelId);
   const { data: model } = useModelStatus();
   const { activeModel } = useActiveModel();
-  const { data: allModels } = useModels();
-  const models = allModels ?? [];
   const generate = useSubmitGeneration();
+  const activeVoice = useActiveVoice();
+  const queryClient = useQueryClient();
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isImportingLibrary, setIsImportingLibrary] = useState(false);
 
   const modelReady = !!model?.loaded;
   const isGenerating = generate.isPending || !!activeJobId;
 
-  const selectedVoiceCompatibleModels = selectedProfile?.compatible_models ?? null;
+  const selectedVoiceCompatibleModels = activeVoice?.compatible_models ?? null;
   const selectedModelIncompatible =
-    selectedProfile &&
+    activeVoice &&
     activeModel &&
     selectedVoiceCompatibleModels &&
     !selectedVoiceCompatibleModels.includes(activeModel.id);
 
   useEffect(() => {
     if (
-      !selectedProfile ||
+      !activeVoice ||
       !selectedVoiceCompatibleModels ||
       !selectedModelId
     ) return;
@@ -60,7 +67,7 @@ export function GenerationPanel() {
     if (firstCompatible) {
       setSelectedModelId(firstCompatible);
     }
-  }, [selectedProfile?.id]);
+  }, [activeVoice?.id]);
 
   const tagIssues = activeModel
     ? validateTags(text, activeModel.supported_tags)
@@ -68,24 +75,69 @@ export function GenerationPanel() {
   const hasTagIssues = tagIssues.length > 0;
   const canGenerate =
     !!text.trim() &&
-    !!selectedProfile &&
+    !!activeVoice &&
     modelReady &&
     !isGenerating &&
+    !isImporting &&
     !hasTagIssues &&
     !selectedModelIncompatible;
 
-  const handleGenerate = () => {
+  const handleImportToLibrary = useCallback(async () => {
+    if (!temporaryVoice) return;
+    setIsImportingLibrary(true);
+    setGenerationError(null);
+    try {
+      const profile = await importVoiceResource(temporaryVoice.source_resource_id);
+      promoteTemporaryToPersisted(profile);
+      queryClient.invalidateQueries({ queryKey: ["voices-page"] });
+      queryClient.invalidateQueries({ queryKey: ["voices"] });
+    } catch (e) {
+      setGenerationError(
+        e instanceof Error ? e.message : "Failed to import voice to library.",
+      );
+    } finally {
+      setIsImportingLibrary(false);
+    }
+  }, [temporaryVoice, promoteTemporaryToPersisted, queryClient]);
+
+  const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
+
+    setGenerationError(null);
+
+    let voiceProfileId = selectedProfile?.id ?? null;
+    let transcript = selectedProfile?.transcript ?? null;
+
+    if (!selectedProfile && temporaryVoice) {
+      setIsImporting(true);
+      try {
+        const profile = await importVoiceResource(temporaryVoice.source_resource_id);
+        promoteTemporaryToPersisted(profile);
+        voiceProfileId = profile.id;
+        transcript = profile.transcript;
+      } catch (e) {
+        setGenerationError(
+          e instanceof Error ? e.message : "Failed to import voice for generation.",
+        );
+        setIsImporting(false);
+        return;
+      }
+      setIsImporting(false);
+    }
+
     generate.mutate({
       text: text.trim(),
       model_id: selectedModelId,
-      voice_profile_id: selectedProfile?.id ?? null,
+      voice_profile_id: voiceProfileId,
       language: language,
-      ref_text: selectedProfile?.transcript || null,
+      ref_text: transcript || null,
       instruct: voiceDesign.length ? buildInstruct(voiceDesign) : null,
       ...generationSettings,
     });
-  };
+  }, [
+    canGenerate, selectedProfile, temporaryVoice, promoteTemporaryToPersisted,
+    text, selectedModelId, language, voiceDesign, generationSettings, generate,
+  ]);
 
   return (
     <div className="flex h-full flex-col">
@@ -275,10 +327,38 @@ export function GenerationPanel() {
           </div>
         )}
 
-        {!selectedProfile && (
+        {!activeVoice && (
           <p className="text-xs text-muted-foreground">
             Select a voice above to get started.
           </p>
+        )}
+
+        {generationError && (
+          <p className="flex items-center gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {generationError}
+          </p>
+        )}
+
+        {temporaryVoice && (
+          <Button
+            className="h-10 w-full gap-2 text-sm"
+            variant="outline"
+            onClick={handleImportToLibrary}
+            disabled={isImportingLibrary || isGenerating}
+          >
+            {isImportingLibrary ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Importing to Library…
+              </span>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                Import <span className="font-medium">{temporaryVoice.name}</span> to Library
+              </>
+            )}
+          </Button>
         )}
 
         <Button
@@ -286,7 +366,12 @@ export function GenerationPanel() {
           onClick={handleGenerate}
           disabled={!canGenerate}
         >
-          {isGenerating ? (
+          {isImporting ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Importing voice…
+            </span>
+          ) : isGenerating ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin" />
               Generating…

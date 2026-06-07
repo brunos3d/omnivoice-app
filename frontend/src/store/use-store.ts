@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { VoiceProfile, JobStatus, GenerationSettings, VoiceGenerationDefaults, GenerationRequest } from "@/types"
+import type { VoiceProfile, JobStatus, GenerationSettings, VoiceGenerationDefaults, GenerationRequest, TemporaryVoice, VoiceResourceResponse } from "@/types"
 
 // The application's built-in defaults — used when no voice profile is selected
 // or when the selected profile has no saved generation_defaults.
@@ -42,6 +42,9 @@ export interface CurrentAudio {
 
 interface AppState {
   selectedProfile: VoiceProfile | null
+  /** A non-persisted preset voice selected via "Use in TTS". Mutually exclusive
+   *  with selectedProfile — when temporaryVoice is set, selectedProfile is null. */
+  temporaryVoice: TemporaryVoice | null
   uploadedAudio: UploadedAudio | null
   recordedAudio: UploadedAudio | null
   activeJobId: string | null
@@ -73,6 +76,14 @@ interface AppState {
   selectedModelId: string | null
 
   setSelectedProfile: (profile: VoiceProfile | null) => void
+  /** Construct a TemporaryVoice from a VoiceResourceResponse and select it.
+   *  Clears any previously selected VoiceProfile. Never calls the backend. */
+  selectTemporaryVoice: (resource: VoiceResourceResponse) => void
+  /** Discard the currently selected temporary voice (if any). Resets to no selection. */
+  discardTemporaryVoice: () => void
+  /** After importing a preset, promote the temporary selection to a real profile
+   *  while preserving the user's current settings. */
+  promoteTemporaryToPersisted: (profile: VoiceProfile) => void
   setSelectedModelId: (id: string | null) => void
   setTtsLanguage: (language: string | null) => void
   setCurrentAudio: (audio: CurrentAudio | null) => void
@@ -99,6 +110,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   selectedProfile: null,
+  temporaryVoice: null,
   uploadedAudio: null,
   recordedAudio: null,
   activeJobId: null,
@@ -129,6 +141,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!profile) {
       set({
         selectedProfile: null,
+        temporaryVoice: null,
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: null,
@@ -143,6 +156,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (defaults) {
       set({
         selectedProfile: profile,
+        temporaryVoice: null,
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: defaults,
@@ -156,6 +170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Profile exists but has no saved defaults — fall back to system defaults.
       set({
         selectedProfile: profile,
+        temporaryVoice: null,
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: null,
@@ -168,10 +183,75 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  selectTemporaryVoice: (resource) => {
+    const tempVoice: TemporaryVoice = {
+      id: `temp-${resource.id}`,
+      source_resource_id: resource.id,
+      name: resource.name,
+      language: resource.language,
+      language_code: null,
+      compatible_models: resource.compatible_models,
+      preview_summary: {
+        origin: "provider",
+        count: 0,
+        languages: resource.language ? [resource.language] : [],
+      },
+      creation_source: "PRESET_VOICE",
+      meta: {
+        provider: resource.provider_id,
+        external_id: resource.external_id,
+      },
+      isTemporary: true,
+      transcript: null,
+      audio_duration: null,
+      generation_defaults: null,
+      preview_audio_url: resource.preview_audio_url,
+      provider_id: resource.provider_id,
+      gender: resource.gender,
+      description: resource.description,
+      status: "ready",
+      is_favorite: false,
+      is_public: false,
+      is_preset_voice: true,
+      usage_count: 0,
+    }
+    set({
+      temporaryVoice: tempVoice,
+      selectedProfile: null,
+      uploadedAudio: null,
+      recordedAudio: null,
+      activeVoiceDefaults: null,
+      generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
+      voiceDesign: SYSTEM_DEFAULTS.voice_design,
+      useGpu: SYSTEM_DEFAULTS.use_gpu,
+      ttsLanguage: resource.language ?? get().ttsLanguage,
+    })
+  },
+
+  discardTemporaryVoice: () => {
+    set({
+      temporaryVoice: null,
+      selectedProfile: null,
+      activeVoiceDefaults: null,
+      generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
+      voiceDesign: SYSTEM_DEFAULTS.voice_design,
+      useGpu: SYSTEM_DEFAULTS.use_gpu,
+    })
+  },
+
+  promoteTemporaryToPersisted: (profile) => {
+    set({
+      selectedProfile: profile,
+      temporaryVoice: null,
+      // Keep current settings intact — user may have tweaked them while
+      // the voice was still temporary.
+    })
+  },
+
   setTtsLanguage: (language) => set({ ttsLanguage: language }),
 
-  setUploadedAudio: (audio) => set({ uploadedAudio: audio, selectedProfile: null }),
-  setRecordedAudio: (audio) => set({ recordedAudio: audio, selectedProfile: null }),
+  setUploadedAudio: (audio) => set({ uploadedAudio: audio, selectedProfile: null, temporaryVoice: null }),
+  setRecordedAudio: (audio) => set({ recordedAudio: audio, selectedProfile: null, temporaryVoice: null }),
   setActiveJob: (jobId, status) => set({ activeJobId: jobId, activeJobStatus: status ?? null }),
   setActiveJobStatus: (status) => set({ activeJobStatus: status }),
   setVoiceDesign: (values) => set({ voiceDesign: values }),
@@ -199,5 +279,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       voices: state.voices.map((v) => (v.id === id ? { ...v, ...updates } : v)),
     })),
-  resetAudio: () => set({ uploadedAudio: null, recordedAudio: null, selectedProfile: null }),
+  resetAudio: () => set({ uploadedAudio: null, recordedAudio: null, selectedProfile: null, temporaryVoice: null }),
 }))
+
+/** Returns the currently active voice — either the persisted profile or the
+ *  temporary preset selection. Consumers that need a specific type (e.g.
+ *  edit/delete/GenerationSettings save) should read selectedProfile directly. */
+export function useActiveVoice() {
+  const profile = useAppStore((s) => s.selectedProfile)
+  const temp = useAppStore((s) => s.temporaryVoice)
+  return temp ?? profile
+}

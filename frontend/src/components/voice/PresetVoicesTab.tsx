@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Play } from "lucide-react"
+import { Loader2, Plus, Play, Library, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface PresetVoicesTabProps {
@@ -143,21 +143,34 @@ export function PresetVoicesTab({ onScopeChange }: PresetVoicesTabProps) {
 function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResourceResponse; onScopeChange?: (scope: string) => void; onError?: (msg: string | null) => void }) {
   const queryClient = useQueryClient()
   const router = useRouter()
+  const selectTemporaryVoice = useAppStore((s) => s.selectTemporaryVoice)
   const setSelectedProfile = useAppStore((s) => s.setSelectedProfile)
   const [isAdding, setIsAdding] = useState(false)
 
-  const addToLibrary = async (useNow: boolean) => {
+  const useInTts = () => {
+    if (voice.is_in_library && voice.library_voice_id) {
+      // Already imported — find and select the existing profile
+      const existing = useAppStore.getState().voices.find(
+        (v) => v.id === voice.library_voice_id,
+      )
+      if (existing) {
+        setSelectedProfile(existing)
+        router.push("/")
+        return
+      }
+    }
+    // Not imported — use a temporary selection (no API call)
+    selectTemporaryVoice(voice)
+    router.push("/")
+  }
+
+  const importToLibrary = async () => {
     setIsAdding(true)
     onError?.(null)
     try {
-      const profile = await importVoiceResource(voice.id)
+      await importVoiceResource(voice.id)
       queryClient.invalidateQueries({ queryKey: ["voices-page"] })
-      if (useNow) {
-        setSelectedProfile(profile)
-        router.push("/")
-      } else if (onScopeChange) {
-        onScopeChange("mine")
-      }
+      onScopeChange?.("mine")
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to add voice"
       onError?.(msg)
@@ -178,22 +191,34 @@ function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResour
           size="sm"
           variant="default"
           className="flex-1 gap-1"
-          onClick={() => addToLibrary(true)}
-          disabled={isAdding || voice.is_in_library}
+          onClick={useInTts}
+          disabled={isAdding}
         >
-          {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-          Use Now
+          <Play className="h-3 w-3" />
+          Use in TTS
         </Button>
         <Button
           size="sm"
           variant="outline"
           className="flex-1 gap-1"
-          onClick={() => addToLibrary(false)}
+          onClick={importToLibrary}
           disabled={isAdding || voice.is_in_library}
         >
-          {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          {voice.is_in_library ? "In Library" : "Library"}
+          {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : voice.is_in_library ? <Library className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+          {voice.is_in_library ? "Imported" : "Import to Library"}
         </Button>
+        {voice.is_in_library && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="gap-1"
+            onClick={useInTts}
+            disabled={isAdding}
+            title="Use library version"
+          >
+            <Sparkles className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     </div>
   )

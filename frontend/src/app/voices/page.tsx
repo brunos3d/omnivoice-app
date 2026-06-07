@@ -22,9 +22,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LanguageCombobox } from "@/components/common/LanguageCombobox"
 import { useVoicesPage, useToggleFavorite } from "@/hooks/use-generation"
-import { useAppStore } from "@/store/use-store"
+import { useAppStore, useActiveVoice } from "@/store/use-store"
 import { deleteVoice, getVoiceAudioUrl } from "@/lib/api"
 import { formatDuration } from "@/lib/utils"
+import { isVoiceProfile } from "@/types"
 import type { VoiceProfile, VoiceScope, VoiceQueryFilters, CreationSource, SortField } from "@/types"
 
 const GENDERS = ["male", "female"]
@@ -54,6 +55,8 @@ function useDebouncedValue<T>(value: T, delay = 200): T {
 export default function VoiceLibraryPage() {
   const selectedProfile = useAppStore((s) => s.selectedProfile)
   const setSelectedProfile = useAppStore((s) => s.setSelectedProfile)
+  const activeVoice = useActiveVoice()
+  const discardTemporaryVoice = useAppStore((s) => s.discardTemporaryVoice)
   const queryClient = useQueryClient()
 
   const [scope, setScope] = useState<VoiceScope>("mine")
@@ -126,25 +129,36 @@ export default function VoiceLibraryPage() {
         <h2 className="text-section-title">Selected voice</h2>
         <p className="text-caption mt-0.5">Single-click a card to select, double-click for details.</p>
       </div>
-      {selectedProfile ? (
+      {activeVoice ? (
         <div className="space-y-4">
           <div>
-            <p className="text-card-title">{selectedProfile.name}</p>
+            <p className="text-card-title">{activeVoice.name}</p>
             <p className="text-caption">
-              {[selectedProfile.language, formatDuration(selectedProfile.audio_duration)].filter(Boolean).join(" · ")}
+              {[activeVoice.language, isVoiceProfile(activeVoice) ? formatDuration(activeVoice.audio_duration) : "Preset"].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <AudioPlayer audioUrl={getVoiceAudioUrl(selectedProfile.id)} title="Reference audio" duration={selectedProfile.audio_duration} />
+          {isVoiceProfile(activeVoice) && (
+            <AudioPlayer audioUrl={getVoiceAudioUrl(activeVoice.id)} title="Reference audio" duration={activeVoice.audio_duration} />
+          )}
           <div className="flex gap-2">
             <Button asChild className="flex-1 gap-2">
               <Link href="/"><Wand2 className="h-4 w-4" /> Use in TTS</Link>
             </Button>
-            <Button variant="outline" size="icon" onClick={() => openEdit(selectedProfile)} title="Edit">
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" className="text-error hover:text-error" onClick={() => deleteMutation.mutate(selectedProfile.id)} title="Delete">
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {isVoiceProfile(activeVoice) && (
+              <>
+                <Button variant="outline" size="icon" onClick={() => openEdit(activeVoice)} title="Edit">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="text-error hover:text-error" onClick={() => deleteMutation.mutate(activeVoice.id)} title="Delete">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            {!isVoiceProfile(activeVoice) && (
+              <Button variant="outline" size="sm" onClick={discardTemporaryVoice}>
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       ) : (
@@ -359,7 +373,7 @@ export default function VoiceLibraryPage() {
                   <VoiceGrid
                     voices={filteredVoices}
                     loading={query.isLoading}
-                    selectedId={selectedProfile?.id}
+                    selectedId={activeVoice?.id ?? null}
                     onSelect={setSelectedProfile}
                     onOpenDetails={openDetails}
                     onEdit={openEdit}

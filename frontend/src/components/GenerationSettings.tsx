@@ -12,6 +12,7 @@ import {
   updateDeviceSettings,
 } from "@/lib/api";
 import type { VoiceGenerationDefaults } from "@/types";
+import { isVoiceProfile } from "@/types";
 
 function settingsEqual(
   a: VoiceGenerationDefaults,
@@ -106,7 +107,7 @@ export function GenerationSettings() {
   };
 
   const handleSave = async () => {
-    if (!selectedProfile || !isDirty) return;
+    if (!selectedProfile || !isVoiceProfile(selectedProfile) || !isDirty) return;
     setSaving(true);
     try {
       const updated = await saveVoiceGenerationDefaults(
@@ -159,7 +160,7 @@ export function GenerationSettings() {
             Reset
           </Button>
 
-          {selectedProfile && (
+          {selectedProfile && isVoiceProfile(selectedProfile) && (
             <Button
               type="button"
               size="sm"

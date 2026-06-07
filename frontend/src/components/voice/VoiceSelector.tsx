@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { VoiceCard } from "@/components/voice/VoiceCard"
 import { EmptyState } from "@/components/common/EmptyState"
-import { useAppStore } from "@/store/use-store"
+import { useAppStore, useActiveVoice } from "@/store/use-store"
 import { useActiveModel } from "@/hooks/use-models"
+import { isTemporaryVoice } from "@/types"
+import type { VoiceProfile } from "@/types"
 
 const CREATION_SOURCE_LABELS: Record<string, string> = {
   SOURCE_ASSET: "Cloned",
@@ -22,8 +24,9 @@ const CREATION_SOURCE_LABELS: Record<string, string> = {
 
 export function VoiceSelector() {
   const voices = useAppStore((s) => s.voices)
-  const selected = useAppStore((s) => s.selectedProfile)
   const setSelectedProfile = useAppStore((s) => s.setSelectedProfile)
+  const discardTemporaryVoice = useAppStore((s) => s.discardTemporaryVoice)
+  const activeVoice = useActiveVoice()
   const { activeModel } = useActiveModel()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -48,6 +51,24 @@ export function VoiceSelector() {
   const filteredCompatible = compatible.filter(nameFilter)
   const filteredNotCompatible = notCompatible.filter(nameFilter)
 
+  const handleSelectLibraryVoice = (voice: VoiceProfile) => {
+    // Selecting a library voice discards any temporary selection
+    if (isTemporaryVoice(activeVoice)) {
+      discardTemporaryVoice()
+    }
+    setSelectedProfile(voice)
+    setOpen(false)
+  }
+
+  const creationSourceLabel = activeVoice && !isTemporaryVoice(activeVoice)
+    ? CREATION_SOURCE_LABELS[activeVoice.creation_source] ?? activeVoice.creation_source
+    : "Preset"
+  const subtitle = activeVoice && !isTemporaryVoice(activeVoice)
+    ? [activeVoice.language, creationSourceLabel].filter(Boolean).join(" · ")
+    : activeVoice
+      ? [activeVoice.language, "Preset"].filter(Boolean).join(" · ")
+      : null
+
   return (
     <div className="space-y-2">
       <p className="text-caption uppercase tracking-wide">Voice</p>
@@ -58,13 +79,11 @@ export function VoiceSelector() {
               <Mic className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-card-title truncate">{selected ? selected.name : "Select a voice"}</p>
+              <p className="text-card-title truncate">{activeVoice ? activeVoice.name : "Select a voice"}</p>
               <p className="text-caption truncate">
-                {selected
-                  ? [selected.language, CREATION_SOURCE_LABELS[selected.creation_source] ?? selected.creation_source].filter(Boolean).join(" · ")
-                  : activeModel
-                    ? `${compatible.length} compatible · ${voices.length} total`
-                    : `${voices.length} voice${voices.length !== 1 ? "s" : ""}`}
+                {subtitle ?? (activeModel
+                  ? `${compatible.length} compatible · ${voices.length} total`
+                  : `${voices.length} voice${voices.length !== 1 ? "s" : ""}`)}
               </p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -100,11 +119,8 @@ export function VoiceSelector() {
                 <VoiceCard
                   key={voice.id}
                   voice={voice}
-                  selected={selected?.id === voice.id}
-                  onSelect={(v) => {
-                    setSelectedProfile(v)
-                    setOpen(false)
-                  }}
+                  selected={activeVoice?.id === voice.id}
+                  onSelect={handleSelectLibraryVoice}
                 />
               ))
             ) : query ? (

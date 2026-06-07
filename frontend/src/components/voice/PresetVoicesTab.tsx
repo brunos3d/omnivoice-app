@@ -243,26 +243,26 @@ function PresetVoiceCard({
         <div>{voice.provider_id ?? "unknown"} · {voice.language ?? "unknown"} · {voice.gender ?? "unknown"}</div>
         {voice.description && <div className="truncate">{voice.description}</div>}
       </div>
-      <div className="flex gap-2 mt-3">
+      <div className="flex flex-col gap-2 mt-3">
         <Button
           size="sm"
           variant="default"
-          className="flex-1 gap-1"
-          onClick={useInTts}
-          disabled={isAdding}
-        >
-          <Play className="h-3 w-3" />
-          Use in TTS
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1 gap-1"
+          className="w-full gap-1"
           onClick={importToLibrary}
           disabled={isAdding}
         >
           {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           Import to Library
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full gap-1"
+          onClick={useInTts}
+          disabled={isAdding}
+        >
+          <Play className="h-3 w-3" />
+          Use in TTS
         </Button>
       </div>
     </div>

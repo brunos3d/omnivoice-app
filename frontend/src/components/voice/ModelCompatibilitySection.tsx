@@ -13,6 +13,7 @@ import { ensureVariant } from "@/lib/api"
 import { useVoiceModelCompatibility } from "@/hooks/use-voice-model-compatibility"
 import { useModels } from "@/hooks/use-models"
 import type { AnyVoice } from "@/types"
+import { isVoiceProfile } from "@/types"
 
 interface ModelCompatibilitySectionProps {
   voice: AnyVoice
@@ -48,12 +49,12 @@ export function ModelCompatibilitySection({
   const buildMut = useMutation({
     mutationFn: (modelId: string) =>
       ensureVariant(
-        "public_voice_id" in voice ? voice.public_voice_id : voice.id,
+        isVoiceProfile(voice) ? voice.public_voice_id : voice.id,
         modelId,
       ),
     onSuccess: () => {
       const voiceId =
-        "public_voice_id" in voice ? voice.public_voice_id : voice.id
+        isVoiceProfile(voice) ? voice.public_voice_id : voice.id
       queryClient.invalidateQueries({
         queryKey: ["voice-variants", voiceId],
       })

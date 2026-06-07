@@ -74,6 +74,7 @@ interface AppState {
   outputFormat: "wav" | "mp3" | "ogg"
   // The model selected by the user for generation; null = platform default.
   selectedModelId: string | null
+  modelSettings: Record<string, Record<string, unknown>>
 
   setSelectedProfile: (profile: VoiceProfile | null) => void
   /** Construct a TemporaryVoice from a VoiceResourceResponse and select it.
@@ -85,6 +86,8 @@ interface AppState {
    *  while preserving the user's current settings. */
   promoteTemporaryToPersisted: (profile: VoiceProfile) => void
   setSelectedModelId: (id: string | null) => void
+  updateModelSetting: (key: string, value: unknown) => void
+  initModelSettings: (modelId: string, settings: Record<string, unknown>) => void
   setTtsLanguage: (language: string | null) => void
   setCurrentAudio: (audio: CurrentAudio | null) => void
   setTtsText: (text: string) => void
@@ -125,10 +128,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   ttsText: "",
   lastRequest: null,
   selectedModelId: null,
+  modelSettings: {},
   outputFormat:
     (typeof window !== "undefined" && (localStorage.getItem("omnivoice:outputFormat") as "wav" | "mp3" | "ogg")) || "wav",
 
-  setSelectedModelId: (id) => set({ selectedModelId: id }),
+  setSelectedModelId: (id) => {
+    const state = get()
+    const prevKey = state.selectedModelId ?? "__default__"
+    const saved = { ...state.modelSettings }
+    saved[prevKey] = { ...state.generationSettings } as unknown as Record<string, unknown>
+    const newKey = id ?? "__default__"
+    const nextSettings = saved[newKey]
+      ? (saved[newKey] as unknown as GenerationSettings)
+      : defaultsToSettings(SYSTEM_DEFAULTS)
+    set({
+      selectedModelId: id,
+      generationSettings: nextSettings,
+      modelSettings: saved,
+    })
+  },
   setCurrentAudio: (audio) => set({ currentAudio: audio }),
   setTtsText: (text) => set({ ttsText: text }),
   setLastRequest: (req) => set({ lastRequest: req }),
@@ -259,7 +277,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   setVoiceDesign: (values) => set({ voiceDesign: values }),
 
   updateGenerationSettings: (settings) =>
-    set((state) => ({ generationSettings: { ...state.generationSettings, ...settings } })),
+    set((state) => {
+      const modelKey = state.selectedModelId ?? "__default__"
+      const currentModelSettings = state.modelSettings[modelKey] ?? {}
+      return {
+        generationSettings: { ...state.generationSettings, ...settings },
+        modelSettings: {
+          ...state.modelSettings,
+          [modelKey]: { ...currentModelSettings, ...settings },
+        },
+      }
+    }),
+
+  updateModelSetting: (key, value) => {
+    const state = get()
+    const modelKey = state.selectedModelId ?? "__default__"
+    const currentSettings = state.modelSettings[modelKey] ?? {}
+    const updated = { ...state.generationSettings, [key]: value as never }
+    set({
+      generationSettings: updated,
+      modelSettings: {
+        ...state.modelSettings,
+        [modelKey]: { ...currentSettings, [key]: value },
+      },
+    })
+  },
+
+  initModelSettings: (modelId, settings) => {
+    const state = get()
+    const key = modelId ?? "__default__"
+    set({
+      modelSettings: {
+        ...state.modelSettings,
+        [key]: settings,
+      },
+    })
+  },
 
   setUseGpu: (value) => set({ useGpu: value }),
 

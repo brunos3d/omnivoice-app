@@ -9,7 +9,9 @@ a **first-class architectural component**, not an implementation detail.
 > Voice*. See also [Domain](domain-architecture.md), [ADR-0002](../DECISIONS/adr-0002-model-as-first-class-entity.md),
 > [ADR-0003](../DECISIONS/adr-0003-model-capability-contract.md), [Cloud](cloud-architecture.md).
 >
-> **Status — implemented (Phases 3.5–3.7) + Runtime-Service architecture accepted (ADR-0016, 2026-06-07).**
+> **Status — implemented (Phases 3.5–3.7) + Runtime-Service architecture accepted
+> (ADR-0016, 2026-06-07) + Phase 2 implementation architecture accepted
+> (ADR-0017, 2026-06-07).**
 > The runtime core exists in code: the
 > `ModelAdapter` contract (`backend/app/services/model_adapter.py`), `PeakVoxRuntime`
 > (`backend/app/services/runtime.py`), the capability contract
@@ -17,9 +19,15 @@ a **first-class architectural component**, not an implementation detail.
 > (`backend/app/services/model_adapters/`). The single Voice ID → many variants → one runtime
 > property is validated by `backend/tests/test_multimodel_resolution.py`. Distributed/cloud
 > execution (§9.2) is **formalized** by [ADR-0016 — Models as Runtime Services](../DECISIONS/adr-0016-models-as-runtime-services.md);
-> see also [`../SPECS/FEATURES/models-as-runtime-services/`](../SPECS/FEATURES/models-as-runtime-services/).
+> the implementation architecture is specified by
+> [ADR-0017 — Runtime Services Implementation](../DECISIONS/adr-0017-runtime-services-implementation.md)
+> (Accepted 2026-06-07; architecture review 0 blocking issues). See also
+> [`../SPECS/FEATURES/models-as-runtime-services/`](../SPECS/FEATURES/models-as-runtime-services/)
+> and
+> [`../SPECS/FEATURES/runtime-services-implementation/`](../SPECS/FEATURES/runtime-services-implementation/).
 > Existing in-process model execution continues unchanged; the 7-phase migration in ADR-0016
-> replaces it across Phases 2–7.
+> replaces it across Phases 2–7, with Phase 2 implementation sub-phases 2A → 2B → 2C → 2D
+> ready to begin.
 
 ---
 

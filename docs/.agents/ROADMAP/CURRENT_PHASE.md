@@ -28,35 +28,40 @@ only.
 
 ### In progress
 
-- **Runtime-Service migration — Phase 2.** Runtime Manager skeleton +
-  `DockerRuntimeDriver`. **Gated on the Phase 2 implementation ADR.**
+- **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).** TDD
+  tasks in
+  [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
 
-> ## ⚠ PHASE 2 IMPLEMENTATION GUARDRAIL
+> ## ⚠ PHASE 2 IMPLEMENTATION GUARDRAIL — RESOLVED
 >
-> **Phase 2 of the Runtime-Service migration may not begin until the Phase 2
-> implementation ADR is Accepted.**
+> **ADR-0017 is Accepted (2026-06-07).** Phase 2 implementation
+> may begin. The previous guardrail is no longer in force.
 >
-> Phase 2 implementation requires the Phase 2 implementation ADR to address the
-> five open questions tracked in
-> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) Decision 10:
-> 1. Runtime endpoint discovery
-> 2. Runtime upgrade / rollback
-> 3. GPU allocation ownership
-> 4. Runtime health contract
-> 5. Backend-to-runtime authentication
+> **Current state (2026-06-07):**
+> - ADR-0016 (architecture): **Accepted** (2026-06-07).
+> - ADR-0017 (Phase 2 implementation architecture): **Accepted**
+>   (2026-06-07). Architecture review: 0 blocking issues;
+>   non-blocking suggestions applied (Runtime Persistence →
+>   `OPEN_DECISIONS.md` Decision 12).
+> - Sub-phase 2A (Foundations): **ready to start**. TDD tasks
+>   in
+>   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
+> - Sub-phases 2B, 2C, 2D: sequenced behind 2A.
 >
-> Until the Phase 2 ADR is Accepted:
-> - **No `RuntimeManager` code.**
-> - **No `RuntimeDriver` / `DockerRuntimeDriver` code.**
-> - **No `runtime-registry/` directory.**
-> - **No Docker integration / Docker SDK.**
-> - **No `GET /api/v1/runtimes` endpoint.**
-> - **No adapter migration code.**
+> Sub-phase 2A may begin. TDD-shaped tasks:
 >
-> Non-binding implementation direction notes for those five questions are
-> recorded in `OPEN_DECISIONS.md` Decision 10 §"Implementation direction
-> (non-binding)". They are **not** accepted decisions and **may not** be used
-> to justify Phase 2 code.
+> | # | Component | File | Test |
+> |---|---|---|---|
+> | 2A.1 | `RuntimeDescriptor` Pydantic | `backend/app/services/runtime_types.py` | `tests/test_runtime_descriptor.py` |
+> | 2A.2 | `RuntimeInstance` | `backend/app/services/runtime_instance.py` | `tests/test_runtime_instance.py` |
+> | 2A.3 | `HealthReport` / `Metrics` | `backend/app/services/runtime_types.py` | `tests/test_runtime_health.py` |
+> | 2A.4 | `RuntimeDriverError` hierarchy | `backend/app/services/runtime_errors.py` | `tests/test_runtime_errors.py` |
+> | 2A.5 | `RuntimeDriver` Protocol | `backend/app/services/runtime_driver.py` | `tests/test_runtime_driver_protocol.py` |
+> | 2A.6 | `RuntimeRegistryLoader` | `backend/app/services/runtime_registry.py` | `tests/test_runtime_registry.py` |
+> | 2A.7 | `RuntimeEventBus` | `backend/app/services/runtime_events.py` | `tests/test_runtime_events.py` |
+> | 2A.8 | `RuntimeManager` skeleton | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager.py` |
+> | 2A.9 | Status updates | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link |
+> | 2A.10 | `PeakVoxRuntime` integration | `backend/app/services/runtime.py` | `tests/test_runtime_routing_phase2.py` |
 
 ### The gate before Cloud work
 

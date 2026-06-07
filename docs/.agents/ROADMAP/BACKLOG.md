@@ -10,36 +10,45 @@
 1. ~~**Stabilize + commit the in-flight working tree.**~~ ✅ Complete (commit landed).
 2. ~~**First foreign-provider validation.**~~ ✅ **Kokoro G5 passed** (real audio generated
    E2E through the Runtime). Cloud readiness gate is **OPEN**.
-3. **Runtime-Service migration — Phase 2** (Runtime Manager skeleton + `DockerRuntimeDriver`).
-   See [ADR-0016](../DECISIONS/adr-0016-models-as-runtime-services.md) and
-   [`../SPECS/FEATURES/models-as-runtime-services/`](../SPECS/FEATURES/models-as-runtime-services/).
-   Phase 1 (ADR + design) is complete; Phase 2 implementation is gated on a Phase 2
-   implementation ADR (deferred open questions: runtime endpoint discovery, GPU
-   allocation, runtime health contract, backend-to-runtime auth).
-4. **Runtime-Service migration — Phases 3–7** (Kokoro, F5-TTS, Fish, OmniVoice migrations,
+3. ~~**ADR-0017 (Phase 2 implementation architecture).**~~ ✅ **Accepted** 2026-06-07.
+   See [ADR-0017](../DECISIONS/adr-0017-runtime-services-implementation.md) and
+   [`../SPECS/FEATURES/runtime-services-implementation/`](../SPECS/FEATURES/runtime-services-implementation/).
+   Architecture review: 0 blocking issues. Non-blocking suggestions applied
+   (Runtime Persistence → `OPEN_DECISIONS.md` Decision 12).
+4. **Runtime-Service migration — Phase 2 Sub-phase 2A (Foundations).** TDD-shaped
+   tasks in
+   [`../SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A.
+   First P0 work item: `RuntimeDescriptor`, `RuntimeInstance`, `HealthReport`/`Metrics`,
+   `RuntimeDriverError`, `RuntimeDriver` Protocol, `RuntimeRegistryLoader`,
+   `RuntimeEventBus`, `RuntimeManager` skeleton, status updates,
+   `PeakVoxRuntime` integration.
+5. **Runtime-Service migration — Sub-phases 2B, 2C, 2D** (Docker driver; HTTPTransport +
+   Kokoro integration; CE operations). Sequenced behind 2A.
+6. **Runtime-Service migration — Phases 3–7** (Kokoro, F5-TTS, Fish, OmniVoice migrations,
    in-process path removal). Sequenced behind Phase 2.
 
 ## P1 — CE hardening (can proceed in parallel with Phase 2)
 
-5. **Phase 9 — Public API harden:** freeze `/v1`, consistent error model (402/409/410/422),
+6. **Phase 9 — Public API harden:** freeze `/v1`, consistent error model (402/409/410/422),
    `pv_` key transition, publish OpenAPI, ship SDK, deprecation policy.
-6. **OmniVoice end-to-end audio test** (gated/optional CI lane with weights) to move OmniVoice
+7. **OmniVoice end-to-end audio test** (gated/optional CI lane with weights) to move OmniVoice
    from PARTIAL to VALIDATED on the provider axis.
-7. **Fish S2 Pro server deployment** (subject to existing hardware blocker — 24GB+ VRAM
+8. **Fish S2 Pro server deployment** (subject to existing hardware blocker — 24GB+ VRAM
    required; see
    [`../VALIDATION/PROVIDER_VALIDATIONS/`](../VALIDATION/PROVIDER_VALIDATIONS/)).
-8. **Kokoro G7 (performance) and G8 (error recovery)** measurement — low priority.
+9. **Kokoro G7 (performance) and G8 (error recovery)** measurement — low priority.
 
 ## P2 — Provisioning decisions (write the reserved ADRs when decided)
 
-9. ADR-0012 Variant Provisioning Policies (per Creation Source).
-10. ADR-0013 Model Categories (cloning vs preset vs training).
-11. **Phase 2 implementation ADR** for the Runtime-Service migration (deferred open
-    questions from ADR-0016; see
-    [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) Decision 10).
+10. ADR-0012 Variant Provisioning Policies (per Creation Source).
+11. ADR-0013 Model Categories (cloning vs preset vs training).
 12. **Future driver ADRs:** `KubernetesRuntimeDriver` (Cloud), `PodmanRuntimeDriver`,
     `LocalProcessDriver` (one ADR per driver when its edition begins; see
     [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) Decision 11).
+13. **Runtime Persistence ADR** (see
+    [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) Decision 12). Non-blocking.
+    Future work for fleet management, operational dashboards, historical
+    health tracking, Cloud orchestration, runtime metrics.
 
 ## P3 — Cloud ecosystem (no longer blocked on P0.2; sequencing is now deliberate)
 
@@ -58,4 +67,5 @@
 
 **Related:** [`ROADMAP.md`](../ARCHIVE/LEGACY/ROADMAP.md) · [`MILESTONES.md`](MILESTONES.md) ·
 [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) ·
-[`../SPECS/FEATURES/models-as-runtime-services/`](../SPECS/FEATURES/models-as-runtime-services/)
+[`../SPECS/FEATURES/models-as-runtime-services/`](../SPECS/FEATURES/models-as-runtime-services/) ·
+[`../SPECS/FEATURES/runtime-services-implementation/`](../SPECS/FEATURES/runtime-services-implementation/)

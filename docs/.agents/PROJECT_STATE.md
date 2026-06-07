@@ -3,14 +3,15 @@
 > Single source of truth for overall project state. Objective facts only. No emojis, no
 > subjective language. Update this file whenever phase, priorities, risks, or blockers change.
 
-**Last update:** 2026-06-07 (refinement pass: Kokoro validation language normalized; Phase 2 guardrail added to NEXT_TASK / CURRENT_PHASE; OPEN_DECISIONS Decision 10 enriched with implementation direction notes; Runtime Manager responsibilities normalized across ADR-0016 / SPEC / DESIGN)
+**Last update:** 2026-06-07 (ADR-0017 Accepted; Decision 10 RESOLVED; Decision 12 added for Runtime Persistence; state files updated; sub-phase 2A is the next P0 work item)
 **Branch:** `feat/peakvox-phase-1`
 **Edition target:** Community Edition (CE). Cloud is schema-ready, not implemented.
 **Cloud readiness gate:** ✅ OPEN — Kokoro validated as first non-OmniVoice provider (G5 passed).
-**Architecture direction (new):** ADR-0016 (Models as Runtime Services) accepted 2026-06-07.
+**Architecture direction:** ADR-0016 (Models as Runtime Services) Accepted 2026-06-07;
+ADR-0017 (Runtime Services Implementation — Phase 2 architecture) **Accepted** 2026-06-07.
 The Runtime-Service architecture is the agreed target; migration is sequenced across
-7 phases. Phase 1 (ADR + design) is complete; Phase 2 (Runtime Manager skeleton +
-`DockerRuntimeDriver`) is the next workstream.
+7 phases. Phase 1 (ADR + design) and the Phase 2 implementation architecture are
+complete. Phase 2 implementation sub-phases 2A → 2B → 2C → 2D may begin.
 
 ---
 
@@ -20,24 +21,29 @@ PeakVox Phase 1 (Platform Foundations) through Phase 3.11 are built. The CE spin
 (Phases 1–3 plus sub-phases 3.5–3.11) is implemented and covered by automated tests.
 Kokoro provider validation is complete (G5 passed — real audio generated E2E through
 the Runtime; see `VALIDATION/PROVIDER_VALIDATIONS/kokoro-validation-report.md`).
-Active focus: the Runtime-Service architecture (ADR-0016, accepted 2026-06-07);
-Phase 1 (ADR + design) is complete, Phase 2 implementation is gated on a Phase 2
-implementation ADR. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md) and
-[`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md).
+Active focus: Phase 2 implementation. ADR-0016 (architecture) is Accepted;
+ADR-0017 (Phase 2 implementation architecture) is **Accepted**. Phase 1 and the
+Phase 2 architecture are complete. Phase 2 implementation sub-phases
+2A → 2B → 2C → 2D may begin. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md)
+and [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md).
 
 ## Current priorities
 
 1. ✅ **Provider-validation gap closed.** Kokoro generates real audio E2E through the Runtime.
    Cloud readiness gate is open.
-2. ✅ **Runtime-Service architecture designed.** ADR-0016 (Models as Runtime Services) is
-   accepted. PeakVox will evolve to a Runtime-Service architecture (Runtime Registry +
-   Runtime Manager + Runtime Driver + Runtime Service). See
-   `docs/.agents/SPECS/FEATURES/models-as-runtime-services/`. 7-phase migration plan; Phase 1
-   (this) is documentation only.
-3. **Next workstream:** begin **Phase 2** of the Runtime-Service migration — implement
-   the Runtime Manager skeleton + `DockerRuntimeDriver` (no model migrated yet). This
-   preempts Cloud work; the Runtime-Service target is the same for CE and Cloud
-   (Article V §14), so investing in Phase 2 unblocks both editions.
+2. ✅ **Runtime-Service architecture designed (ADR-0016 Accepted).** PeakVox will evolve to
+   a Runtime-Service architecture (Runtime Registry + Runtime Manager + Runtime Driver +
+   Runtime Service). 7-phase migration plan; Phase 1 (this) is documentation only.
+3. ✅ **Phase 2 implementation architecture accepted (ADR-0017).** See
+   `docs/.agents/SPECS/FEATURES/runtime-services-implementation/`. Specifies the 10
+   deliverables and resolves the 5 deferred open questions from
+   `OPEN_DECISIONS.md` Decision 10 (now RESOLVED). Architecture review: 0 blocking
+   issues; non-blocking suggestions applied.
+4. **Next workstream:** begin **sub-phase 2A** (Foundations:
+   `RuntimeDescriptor`, `RuntimeRegistry`, `RuntimeManager`, `RuntimeDriver` protocol,
+   `RuntimeInstance`, `RuntimeEventBus`). This preempts Cloud work; the Runtime-Service
+   target is the same for CE and Cloud (Article V §14), so investing in Phase 2
+   unblocks both editions.
 
 ## Implemented components (architecture-validated; see IMPLEMENTATION_STATUS for evidence)
 
@@ -70,6 +76,12 @@ implementation ADR. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md) a
   Phases 2–7 (Runtime Manager, Kokoro/F5/Fish/OmniVoice migrations, in-process path
   removal) are planned, not started. Existing in-process model execution continues
   throughout.
+- **Phase 2 implementation architecture (ADR-0017):** **Accepted** 2026-06-07.
+  Specifies the 10 deliverables; resolves the 5 deferred open questions from
+  `OPEN_DECISIONS.md` Decision 10. No code, no migrations, no
+  `runtime-registry/` directory, no `RuntimeManager` class, no `RuntimeDriver` class,
+  no `RuntimeDescriptor` Pydantic class, no new API endpoints, no Docker integration,
+  no Kokoro migration code. Implementation sub-phases 2A-2D may begin.
 
 ## Planned components (schema/seams only; no implementation)
 
@@ -116,9 +128,10 @@ implementation ADR. See [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md) a
   [`VALIDATION/PROVIDER_VALIDATIONS/`](VALIDATION/PROVIDER_VALIDATIONS/) (Fish blocker report).
 - No GPU in CI, so end-to-end audio generation cannot be fully automated in the test suite.
 - `test_voices.py` requires `torch` — excluded from local test suite; only runs in Docker.
-- **Phase 2 implementation ADR not yet written.** Phase 2 of the Runtime-Service migration
-  (Runtime Manager skeleton + `DockerRuntimeDriver`) is gated on a Phase 2 implementation
-  ADR that addresses the five open questions tracked in `OPEN_DECISIONS.md` Decision 10.
+- **No architectural blockers for Phase 2 implementation.** ADR-0017 is Accepted.
+  Sub-phase 2A (Foundations) is the next P0 work item. The Runtime Persistence
+  follow-up ADR is tracked as [`OPEN_DECISIONS.md` Decision 12](OPEN_DECISIONS.md)
+  (non-blocking, future work).
 
 ---
 

@@ -5,56 +5,66 @@
 
 **As of:** 2026-06-07
 
-> ## ⚠ PHASE 2 GUARDRAIL — DO NOT BEGIN IMPLEMENTATION
->
-> **Phase 2 of the Runtime-Service migration may not begin until the Phase 2
-> implementation ADR is Accepted.**
->
-> Current state:
-> - ADR-0016 (architecture): **Accepted** (2026-06-07).
-> - Phase 1 (ADR + design docs): **Complete** (this phase).
-> - Phase 2 (Runtime Manager skeleton + `DockerRuntimeDriver`): **Not started.**
-> - Phase 2 implementation ADR: **Not written.**
->
-> The Phase 2 implementation ADR must address the five open questions tracked in
-> [`OPEN_DECISIONS.md` Decision 10](OPEN_DECISIONS.md) (runtime endpoint
-> discovery, runtime upgrade / rollback, GPU allocation ownership, runtime
-> health contract, backend-to-runtime authentication). Until that ADR is
-> Accepted, **no code, no `RuntimeManager` class, no `RuntimeDriver`, no
-> `runtime-registry/` directory, no Docker integration, no `GET
-> /api/v1/runtimes` endpoint may be written.**
->
-> This guardrail is mirrored in [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md)
-> and the Phase 2 entry in [`ROADMAP/BACKLOG.md`](ROADMAP/BACKLOG.md).
+## Task: Phase 2 Sub-phase 2A — Foundations (RuntimeDescriptor, RuntimeRegistry, RuntimeManager, RuntimeDriver protocol, RuntimeInstance, RuntimeEventBus)
 
-## Task: Runtime-Service Migration — Phase 2 (Runtime Manager skeleton + DockerRuntimeDriver)
+- **Priority:** P0. Phase 2 implementation may now begin.
+- **Status:** **Ready to start.** ADR-0016 (Accepted) + ADR-0017
+  (Accepted) are the architectural baseline. Architecture review
+  passed (0 blocking issues; non-blocking suggestions applied).
+- **Architecture review result:** ACCEPT.
+  - ADR-0017 package: architecturally sound, internally consistent,
+    Constitution-aligned, domain integrity preserved.
+  - Non-blocking suggestions applied:
+    1. **Runtime Persistence** — added as a future ADR
+       ([`OPEN_DECISIONS.md` Decision 12](OPEN_DECISIONS.md)). Not
+       blocking.
+    2. **ADR_INDEX / IMPLEMENTATION_STATUS consistency** — ADR-0017
+       status flipped from `Proposed` to `Accepted`; implementation
+       status is `APPROVED` (architecture approved, no code yet),
+       consistent with the ADR-0016 pattern.
+- **Sub-phase 2A plan** (TDD per task, from
+  [`SPECS/FEATURES/runtime-services-implementation/TASKS.md`](SPECS/FEATURES/runtime-services-implementation/TASKS.md) §2A):
 
-- **Priority:** P0 (new). Supersedes the prior "Cloud architecture planning" decision item
-  now that ADR-0016 is accepted.
-- **Status:** **Phase 1 complete (ADR + design, no code).** ADR-0016 is Accepted (2026-06-07).
-  Phase 2 implementation is **next** but does not start until the Phase 2 implementation ADR
-  is written to address the deferred open questions (runtime endpoint discovery, GPU
-  allocation, runtime health contract, backend-to-runtime auth).
-- **Decision (new):** PeakVox adopts the Runtime-Service architecture. PeakVox installs
-  *runtimes*, not models. One Model → many Runtimes (CUDA / CPU / local / cloud).
-  See `docs/.agents/SPECS/FEATURES/models-as-runtime-services/`.
-- **Phase 2 plan (deferred, awaiting Phase 2 implementation ADR):**
-  1. `RuntimeDescriptor` Pydantic model (`backend/app/services/runtime_types.py`).
-  2. `RuntimeRegistryLoader` (`backend/app/services/runtime_registry.py`).
-  3. `RuntimeDriver` protocol + `DockerRuntimeDriver` first implementation.
-  4. `RuntimeManager` skeleton (orchestrates; never executes inference).
-  5. `lint_no_docker_outside_driver.py` AST check (ban `import docker` outside driver pkg).
-  6. `GET /api/v1/runtimes` discovery endpoint.
-  7. ARCHITECTURE update — new §13 "Runtime Layer".
-- **Provider-validation status (unchanged):** Kokoro G5 ✅. Fish Audio S2 Pro still blocked
-  on hardware. OmniVoice Base E2E audio test would be nice; no GPU in CI.
-- **Cloud readiness gate:** still OPEN. Phase 2 is the new gateway: it unblocks both CE
-  hardening and Cloud architecture planning by establishing the substrate-neutral
-  runtime layer.
-- **Next:** write the Phase 2 implementation ADR; begin Phase 2 implementation.
+  | Task | Component | File | Test |
+  |---|---|---|---|
+  | 2A.1 | `RuntimeDescriptor` Pydantic model | `backend/app/services/runtime_types.py` | `tests/test_runtime_descriptor.py` |
+  | 2A.2 | `RuntimeInstance` frozen dataclass | `backend/app/services/runtime_instance.py` | `tests/test_runtime_instance.py` |
+  | 2A.3 | `HealthReport` and `Metrics` frozen dataclasses | `backend/app/services/runtime_types.py` | `tests/test_runtime_health.py` |
+  | 2A.4 | `RuntimeDriverError` hierarchy (8 subclasses) | `backend/app/services/runtime_errors.py` | `tests/test_runtime_errors.py` |
+  | 2A.5 | `RuntimeDriver` Protocol (10 operations) | `backend/app/services/runtime_driver.py` | `tests/test_runtime_driver_protocol.py` |
+  | 2A.6 | `RuntimeRegistryLoader` (file-based discovery + indexes) | `backend/app/services/runtime_registry.py` | `tests/test_runtime_registry.py` |
+  | 2A.7 | `RuntimeEventBus` adapter (publishes to `app.core.events`) | `backend/app/services/runtime_events.py` | `tests/test_runtime_events.py` |
+  | 2A.8 | `RuntimeManager` skeleton (orchestration only) | `backend/app/services/runtime_manager.py` | `tests/test_runtime_manager.py` |
+  | 2A.9 | Update `IMPLEMENTATION_STATUS.md` (2A components IN_PROGRESS) | `docs/.agents/IMPLEMENTATION_STATUS.md` | cross-link check |
+  | 2A.10 | `PeakVoxRuntime` integration with `RuntimeManager.resolve` | `backend/app/services/runtime.py` | `tests/test_runtime_routing_phase2.py` |
+
+- **Definition of done — Sub-phase 2A:**
+  - All 10 tasks complete; tests green.
+  - `RuntimeManager` orchestrates; `RuntimeDriver` protocol is the
+    only seam.
+  - No new API endpoints yet.
+  - No `runtime-registry/` directory created (the registry loader
+    reads from a configured path; the path may be empty).
+  - Existing in-process model execution **continues to work
+    unchanged** when `RuntimeManager` is not wired (regression).
+
+- **Sub-phases 2B, 2C, 2D** (sequenced behind 2A, not in flight):
+  - **2B** — `DockerRuntimeDriver` + `lint_no_docker_outside_driver.py`
+  - **2C** — `HTTPTransport` + `KokoroAdapter` `KOKORO_RUNTIME_URL` path
+  - **2D** — CE operations (install/activate/update/remove) +
+    `runtime-registry/` with Kokoro descriptor
+
+- **Provider-validation status (unchanged):** Kokoro G5 ✅. Fish
+  Audio S2 Pro still blocked on hardware. OmniVoice Base E2E
+  audio test would be nice; no GPU in CI.
+- **Cloud readiness gate:** still OPEN. ADR-0017 is the gateway
+  to CE hardening and Cloud architecture planning (the
+  `KubernetesRuntimeDriver` lands as Decision 11's separate ADR).
+- **Next:** begin sub-phase 2A.
 
 ---
 
 **Related:** [`ACTIVE_WORK.md`](ACTIVE_WORK.md) · [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md) ·
-[`docs/.agents/SPECS/FEATURES/models-as-runtime-services/`](SPECS/FEATURES/models-as-runtime-services/) ·
+[`docs/.agents/SPECS/FEATURES/runtime-services-implementation/`](SPECS/FEATURES/runtime-services-implementation/) ·
+[`docs/.agents/DECISIONS/adr-0017-runtime-services-implementation.md`](DECISIONS/adr-0017-runtime-services-implementation.md) ·
 [`docs/.agents/DECISIONS/adr-0016-models-as-runtime-services.md`](DECISIONS/adr-0016-models-as-runtime-services.md)

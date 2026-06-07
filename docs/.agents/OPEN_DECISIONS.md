@@ -5,7 +5,7 @@
 > These mirror the "Candidate future ADRs" in `../architecture/adrs/README.md` plus active
 > open questions.
 
-**Last update:** 2026-06-05
+**Last update:** 2026-06-07 (ADR-0017 accepted; Decision 10 RESOLVED; Decision 12 added for Runtime Persistence)
 
 ---
 
@@ -91,100 +91,40 @@
 
 ## Decision 10 — Runtime-Service Phase 2 implementation ADR
 
-- **Status:** OPEN. Phase 2 implementation **may not begin** until the Phase 2
-  implementation ADR is accepted (see also [`NEXT_TASK.md`](NEXT_TASK.md) and
-  [`ROADMAP/CURRENT_PHASE.md`](ROADMAP/CURRENT_PHASE.md) for the explicit guardrail).
-- **Context:** ADR-0016 defers five open questions that the Phase 2 implementation
-  must answer before code is written. They are tracked here for the next ADR.
-- **Sub-questions:**
-  1. **Runtime endpoint discovery** — DNS-based service name vs explicit URL vs
-     sidecar registry.
-  2. **Runtime upgrade / rollback** — image tagging strategy; in-place upgrade
-     vs versioned runtimes.
-  3. **GPU allocation protocol** — how the runtime service claims the device;
-     how the backend queries it (or stays out of it entirely).
-  4. **Runtime health contract** — liveness + readiness endpoints; cadence;
-     what counts as healthy.
-  5. **Backend-to-runtime authentication** — mTLS, token, none. What is the
-     default in CE; what changes in Cloud.
-- **Impact:** Phase 2 implementation cannot start until the next ADR lands.
-- **Related:** ADR-0016 (Open questions section); Phase 2 tasks in
-  `SPECS/FEATURES/models-as-runtime-services/TASKS.md` §2.
+- **Status:** ✅ **RESOLVED** (2026-06-07).
+- **Decision:** [ADR-0017 — Runtime Services Implementation](DECISIONS/adr-0017-runtime-services-implementation.md)
+  is **Accepted** (2026-06-07). The five open questions are
+  resolved as **accepted architecture** by reference to ADR-0017.
+  Phase 2 implementation may begin safely.
+- **Resolution (per ADR-0017):**
+  1. **Runtime endpoint discovery** — `RuntimeManager.resolve` is
+     the single resolution point (ADR-0017 §3.4).
+  2. **Runtime upgrade / rollback** — versioned images; pin by
+     `spec.image.digest`; declarative rollback via descriptor change
+     (ADR-0017 §1.4, §4.3).
+  3. **GPU allocation protocol** — Runtime Service owns the device;
+     `RuntimeManager` only observes capability and reports health
+     (ADR-0017 §4.4, §5.2).
+  4. **Runtime health contract** — separate liveness (`/health`) and
+     readiness (`/ready`); readiness = can serve inference;
+     `RuntimeManager` refuses to route to not-ready instances
+     (ADR-0017 §6.1, §6.2).
+  5. **Backend-to-runtime authentication** — CE default = `none`;
+     Cloud deferred to the Cloud ADR; `HTTPTransport` accepts an
+     optional bearer token (ADR-0017 §9, §10).
+- **Result:** Phase 2 implementation may begin. Sub-phase 2A
+  (Foundations: `RuntimeDescriptor`, `RuntimeRegistry`,
+  `RuntimeManager`, `RuntimeDriver` protocol, `RuntimeInstance`,
+  `RuntimeEventBus`) is the next P0 work item.
+- **Related:** [ADR-0017](DECISIONS/adr-0017-runtime-services-implementation.md);
+  [ADR-0016](DECISIONS/adr-0016-models-as-runtime-services.md);
+  [`SPECS/FEATURES/runtime-services-implementation/`](SPECS/FEATURES/runtime-services-implementation/);
+  [`SPECS/FEATURES/models-as-runtime-services/TASKS.md` §2](SPECS/FEATURES/models-as-runtime-services/TASKS.md).
 
-### Implementation direction (non-binding)
-
-> **The notes below are implementation direction, not accepted architecture.**
-> They are recorded here to seed the Phase 2 ADR. They become binding only when
-> the Phase 2 ADR is **Accepted** by the architecture process. They MUST NOT be
-> treated as decisions and MUST NOT be used to justify Phase 2 code before the
-> ADR is accepted.
-
-#### 1. Runtime endpoint discovery
-
-- **RuntimeManager owns endpoint resolution.** Adapters never discover
-  endpoints directly.
-- **Adapters never read** Docker, Kubernetes, DNS, environment variables, or
-  runtime metadata directly. They ask the RuntimeManager for a route.
-- **RuntimeDriver remains responsible for substrate-specific discovery** (e.g.
-  resolving a service name into a reachable URL inside a Docker network, K8s
-  cluster, etc.). The RuntimeManager does not import or call substrate APIs.
-
-Desired flow:
-
-```
-Adapter
-  → RuntimeManager
-      → RuntimeDriver
-          → endpoint
-```
-
-#### 2. Runtime upgrade / rollback
-
-- **Prefer versioned runtime images** (e.g. `peakvox/f5-runtime:1.4.2`) over
-  mutable tags like `latest` for production paths.
-- **Avoid in-place mutable upgrades.** A new version = a new image + (when
-  activated) a new instance; do not patch the running image.
-- **`RuntimeInstance` always exposes image identity** (repository + immutable
-  tag + digest) so the backend can pin, roll back, and audit.
-- **Rollback** is a return to a prior image version, not a hot-swap.
-
-#### 3. GPU allocation ownership
-
-- **The Runtime Service owns the device.** It is the only thing that imports
-  CUDA / cuDNN / driver libraries.
-- **The backend never owns CUDA resources.** The backend process does not
-  import `torch.cuda`, `cupy`, or any GPU driver surface.
-- **The RuntimeManager only observes** declared capability and reports
-  health. It does not allocate, schedule, or release GPUs.
-- **VRAM contract** is enforced by the runtime service and reported via
-  `runtime_health` / `runtime_metrics`. The RuntimeManager surfaces the
-  report; it does not negotiate.
-
-#### 4. Runtime health contract
-
-Separate two concepts:
-
-- **Liveness** — the runtime process is up and responding (HTTP 200 on
-  a liveness probe). Used to decide whether to restart the instance.
-- **Readiness** — the runtime can actually serve inference right now
-  (model loaded, weights resident, GPU claimed, no transient error).
-  Used to decide whether to route traffic to the instance.
-
-**Readiness must indicate the runtime can actually serve inference** —
-not merely that the process is alive. The RuntimeManager must refuse to
-route to an instance whose readiness is `false`. The health endpoint and
-cadence are part of the `runtime.yaml` descriptor.
-
-#### 5. Backend-to-runtime authentication
-
-- **Community Edition (default):** `none`. The backend and the runtime
-  service are co-located on the same host / Docker network; network-level
-  isolation is sufficient.
-- **Cloud Edition (deferred):** `token` or `mTLS`. The final choice
-  (token-based, mTLS, sidecar mesh) is left to the Cloud ADR.
-
-> These notes do not decide the Cloud authentication mechanism. The
-> Phase 2 implementation ADR (or a follow-up Cloud ADR) makes that call.
+> The historical "Implementation direction (non-binding, seed for
+> ADR-0017)" notes that previously lived here have been **resolved**
+> into the canonical architecture of ADR-0017. They are no longer
+> needed as decision seeds.
 
 ## Decision 11 — Future runtime drivers (Kubernetes, Podman, LocalProcess)
 
@@ -199,6 +139,54 @@ cadence are part of the `runtime.yaml` descriptor.
   by ADR-0016; per-driver ADRs cover substrate-specific semantics only.
 - **Related:** ADR-0016 §"Future drivers".
 
+## Decision 12 — Runtime Persistence (future ADR)
+
+- **Status:** OPEN (no ADR written; non-blocking for ADR-0017 accept).
+- **Context:** ADR-0017 deliberately keeps the `RuntimeManager` cache
+  in-memory only. After a backend restart, the cache is empty and
+  runtimes must be re-activated. This is appropriate for Phase 2.
+  Future requirements will likely require persistence:
+  - **Multiple runtime deployments** — fleet management.
+  - **Operational dashboards** — runtime status, history, capacity.
+  - **Historical health tracking** — `/ready` transitions, restart
+    counts, error rates.
+  - **Cloud orchestration** — multi-region, multi-tenant runtime
+    state.
+  - **Runtime metrics and observability** — counters, time series.
+
+  Possible persistence surfaces (all **infrastructure state**, not
+  domain state; forbidden patterns `RuntimeServiceEntity`,
+  `RuntimeServiceRepository`, `RuntimeVariant`, `RuntimeArtifact`
+  from ADR-0016 still apply):
+
+  - `runtime_instances` — last-known state of each instance (id,
+    state, endpoint, image identity, started_at, last_health_at,
+    health_state). Infrastructure bookkeeping owned by the
+    `RuntimeManager`.
+  - `runtime_events` — append-only log of `runtime.<op>.*` events
+    emitted by the `RuntimeEventBus`. Used for audits and
+    dashboards.
+  - `runtime_installations` — record of which runtime version is
+    currently installed on which host / cluster (Cloud-relevant).
+  - **API surface** — `GET /api/v1/runtimes`,
+    `GET /api/v1/runtimes/{id}`,
+    `GET /api/v1/runtimes/{id}/events` (read-only; not in
+    ADR-0017's scope).
+
+- **Impact:** Future ADR. **Not blocking for ADR-0017 acceptance.**
+  ADR-0017 explicitly defers persistence to this future work
+  (`DESIGN §3.5`: "The manager does **not** persist operational
+  state").
+- **Constraints:** Per Constitution §18, any new tables follow
+  the SQLite-safe runner in `app/core/migrations.py`; migrations
+  are additive and idempotent. Per ADR-0016, the domain
+  boundary is preserved: persistence tables are infrastructure
+  state, not domain entities.
+- **Related:** ADR-0017 §3.5 (in-memory cache, persistence
+  deferred); ADR-0016 (domain boundary, forbidden patterns).
+
 ---
 
-**Related:** [`DECISIONS/ADR_INDEX.md`](DECISIONS/ADR_INDEX.md) · [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md)
+**Related:** [`DECISIONS/ADR_INDEX.md`](DECISIONS/ADR_INDEX.md) · [`ROADMAP/ROADMAP.md`](ROADMAP/ROADMAP.md) ·
+[`DECISIONS/adr-0017-runtime-services-implementation.md`](DECISIONS/adr-0017-runtime-services-implementation.md) ·
+[`SPECS/FEATURES/runtime-services-implementation/`](SPECS/FEATURES/runtime-services-implementation/)

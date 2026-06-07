@@ -170,11 +170,19 @@ export interface GenerationRequest {
   ref_text?: string | null
   language?: string | null
   instruct?: string | null
+  /** Model-specific parameters. Use this instead of the individual fields below. */
+  params?: Record<string, unknown>
+  /** @deprecated Use params instead. */
   num_step?: number
+  /** @deprecated Use params instead. */
   guidance_scale?: number
+  /** @deprecated Use params instead. */
   speed?: number | null
+  /** @deprecated Use params instead. */
   duration?: number | null
+  /** @deprecated Use params instead. */
   t_shift?: number
+  /** @deprecated Use params instead. */
   denoise?: boolean
 }
 

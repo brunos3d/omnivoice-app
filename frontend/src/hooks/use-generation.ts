@@ -23,8 +23,37 @@ import type {
   SortField,
   VoiceQueryFilters,
   ModelStatus,
+  SettingsSchema,
 } from "@/types";
 import { useAppStore } from "@/store/use-store";
+
+/**
+ * Filter settings to only include keys declared in the model's settings_schema.
+ * Unknown params are stripped — the model adapter only receives what it understands.
+ */
+export function filterSettingsForModel(
+  settings: Record<string, unknown>,
+  schema: SettingsSchema | null | undefined,
+): Record<string, unknown> {
+  if (!schema?.properties) return {}
+  const allowedKeys = new Set(Object.keys(schema.properties))
+  return Object.fromEntries(
+    Object.entries(settings).filter(([key]) => allowedKeys.has(key))
+  )
+}
+
+/**
+ * Initialize settings from a model's settings_schema defaults.
+ * Returns an object populated with default values for each property.
+ */
+export function initializeSettingsFromSchema(
+  schema: SettingsSchema | null | undefined,
+): Record<string, unknown> {
+  if (!schema?.properties) return {}
+  return Object.fromEntries(
+    Object.entries(schema.properties).map(([key, param]) => [key, param.default ?? null])
+  )
+}
 
 export function useVoices() {
   const setVoices = useAppStore((s) => s.setVoices);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { AudioPlayer } from "@/components/AudioPlayer"
 import { useJobStatus, useSubmitGeneration } from "@/hooks/use-generation"
 import { useAppStore } from "@/store/use-store"
@@ -25,6 +25,14 @@ export function BottomPlayer() {
 
   const isGenerating = activeJobStatus === "pending" || activeJobStatus === "processing"
 
+  // Ref so the promotion effect can read the latest voices without depending
+  // on it. `useVoices` polls every 10s; without this guard the effect re-fires
+  // every poll and the AudioPlayer's transient state (`isPlaying`,
+  // `currentTime`, `naturalDuration`) gets reset on every refetch even though
+  // the audio URL itself is unchanged.
+  const voicesRef = useRef(voices)
+  voicesRef.current = voices
+
   // Clear stale audio the moment a new generation starts.
   useEffect(() => {
     if (isGenerating) setCurrentAudio(null)
@@ -34,7 +42,7 @@ export function BottomPlayer() {
   // Query desync where status is briefly "completed" for job N-1.
   useEffect(() => {
     if (activeJobStatus === "completed" && jobData?.audio_url && jobData.id === activeJobId) {
-      const voiceName = voices.find((v) => v.id === jobData.voice_profile_id)?.name
+      const voiceName = voicesRef.current.find((v) => v.id === jobData.voice_profile_id)?.name
       setCurrentAudio({
         url: `${API_URL}${jobData.audio_url}`,
         duration: jobData.audio_duration ?? null,
@@ -43,7 +51,7 @@ export function BottomPlayer() {
         subtitle: voiceName ? `Voice: ${voiceName}` : undefined,
       })
     }
-  }, [activeJobStatus, jobData, activeJobId, voices, setCurrentAudio])
+  }, [activeJobStatus, jobData, activeJobId, setCurrentAudio])
 
   if (!currentAudio && !isGenerating) return null
 

@@ -36,9 +36,17 @@ const SOURCE_LABELS: Record<string, { label: string; className: string }> = {
 }
 
 const SOURCE_AUDIO_CREATIONS = new Set(["SOURCE_ASSET", "TRAINED_VOICE"])
+const PROFILE_AUDIO_CREATIONS = new Set(["SOURCE_ASSET", "TRAINED_VOICE", "MARKETPLACE_VOICE", "IMPORTED_VOICE"])
 
 function hasSourceAudio(voice: AnyVoice): voice is VoiceProfile {
   return isVoiceProfile(voice) && SOURCE_AUDIO_CREATIONS.has(voice.creation_source) && voice.source_asset != null
+}
+
+function hasProfileAudio(voice: AnyVoice): voice is VoiceProfile {
+  // Only voices that actually have a stored reference audio should fetch
+  // `/voices/{id}/audio`. Preset profiles do not — their preview comes from
+  // the underlying resource's `preview_audio_url`.
+  return isVoiceProfile(voice) && PROFILE_AUDIO_CREATIONS.has(voice.creation_source)
 }
 
 function hasTranscript(voice: AnyVoice): boolean {
@@ -132,8 +140,11 @@ export function VoiceDetailPanel({ voice, open, onOpenChange, onUse, onEdit, onD
   const profile = isVoiceProfile(voice) ? voice : null
   const tempVoice = isTemporaryVoice(voice) ? voice : null
   const badge = getIdentityBadge(voice)
-  const previewable = profile
-    ? profile.preview_summary.origin !== "none" || (profile.audio_duration ?? 0) > 0
+  // A profile is previewable only when its `creation_source` actually has a
+  // stored audio file we can stream. Preset profiles never do — their preview
+  // comes from the underlying catalog resource, surfaced only via TemporaryVoice.
+  const previewable = hasProfileAudio(voice)
+    ? (voice.preview_summary.origin !== "none" || (voice.audio_duration ?? 0) > 0)
     : !!tempVoice?.preview_audio_url
 
   const hasProv = hasProvider(voice)

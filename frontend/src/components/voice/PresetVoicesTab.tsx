@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchVoiceResources, importVoiceResource } from "@/lib/api"
-import type { VoiceResourceResponse } from "@/types"
+import type { VoiceProfile, VoiceResourceResponse } from "@/types"
 import { useAppStore } from "@/store/use-store"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Loader2, Plus, Play, Library, Sparkles } from "lucide-react"
+import { Loader2, Plus, Play, Library } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface PresetVoicesTabProps {
@@ -149,17 +149,25 @@ function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResour
 
   const useInTts = () => {
     if (voice.is_in_library && voice.library_voice_id) {
-      // Already imported — find and select the existing profile
-      const existing = useAppStore.getState().voices.find(
-        (v) => v.id === voice.library_voice_id,
+      // Resolve the existing library voice from the voices-page query cache so
+      // we don't depend on the store being hydrated yet. Fall back to the store
+      // for warmth. If neither yields a profile, fall through to the temporary
+      // selection rather than failing silently.
+      const cached = queryClient.getQueryData<{ pages: { items: VoiceProfile[] }[] }>(
+        ["voices-page", "mine", "", {}, "last_used_at", "desc", undefined, undefined],
       )
+      const allVoices: VoiceProfile[] = cached?.pages.flatMap((p) => p.items) ?? []
+      const existing =
+        allVoices.find((v) => v.id === voice.library_voice_id) ??
+        useAppStore.getState().voices.find((v) => v.id === voice.library_voice_id)
+
       if (existing) {
         setSelectedProfile(existing)
         router.push("/")
         return
       }
     }
-    // Not imported — use a temporary selection (no API call)
+    // Not imported (or cache not yet hydrated) — use a temporary selection.
     selectTemporaryVoice(voice)
     router.push("/")
   }
@@ -170,6 +178,7 @@ function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResour
     try {
       await importVoiceResource(voice.id)
       queryClient.invalidateQueries({ queryKey: ["voices-page"] })
+      queryClient.invalidateQueries({ queryKey: ["voice-resources"] })
       onScopeChange?.("mine")
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to add voice"
@@ -177,6 +186,38 @@ function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResour
     } finally {
       setIsAdding(false)
     }
+  }
+
+  if (voice.is_in_library) {
+    return (
+      <div className="border border-border rounded-lg p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-semibold text-sm truncate">{voice.name}</div>
+            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+              <div>{voice.provider_id ?? "unknown"} · {voice.language ?? "unknown"} · {voice.gender ?? "unknown"}</div>
+              {voice.description && <div className="truncate">{voice.description}</div>}
+            </div>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+            <Library className="h-3 w-3" />
+            In Library
+          </span>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <Button
+            size="sm"
+            variant="default"
+            className="flex-1 gap-1"
+            onClick={useInTts}
+            disabled={isAdding}
+          >
+            <Play className="h-3 w-3" />
+            Open Library Voice
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -202,23 +243,11 @@ function PresetVoiceCard({ voice, onScopeChange, onError }: { voice: VoiceResour
           variant="outline"
           className="flex-1 gap-1"
           onClick={importToLibrary}
-          disabled={isAdding || voice.is_in_library}
+          disabled={isAdding}
         >
-          {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : voice.is_in_library ? <Library className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-          {voice.is_in_library ? "Imported" : "Import to Library"}
+          {isAdding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          Import to Library
         </Button>
-        {voice.is_in_library && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="gap-1"
-            onClick={useInTts}
-            disabled={isAdding}
-            title="Use library version"
-          >
-            <Sparkles className="h-3 w-3" />
-          </Button>
-        )}
       </div>
     </div>
   )

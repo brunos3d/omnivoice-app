@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/accordion";
 import { useAppStore, useActiveVoice } from "@/store/use-store";
 import { useSubmitGeneration, useModelStatus } from "@/hooks/use-generation";
-import { useActiveModel, useRecommendedModelId } from "@/hooks/use-models";
+import { useActiveModel, useRecommendedModelId, useModels } from "@/hooks/use-models";
+import { filterSettingsForModel } from "@/hooks/use-generation";
 import { useQueryClient } from "@tanstack/react-query";
 import { buildInstruct } from "@/config/voice-design";
 import { validateTags } from "@/editor/validate";
@@ -39,6 +40,7 @@ export function GenerationPanel() {
   const setSelectedModelId = useAppStore((s) => s.setSelectedModelId);
   const { data: model } = useModelStatus();
   const { activeModel } = useActiveModel();
+  const { data: allModels } = useModels();
   const generate = useSubmitGeneration();
   const activeVoice = useActiveVoice();
   const queryClient = useQueryClient();
@@ -125,6 +127,12 @@ export function GenerationPanel() {
       setIsImporting(false);
     }
 
+    const currentModel = allModels?.find((m) => m.id === selectedModelId);
+    const filteredParams = filterSettingsForModel(
+      modelSettings[selectedModelId ?? "__default__"] ?? {},
+      currentModel?.settings_schema,
+    );
+
     generate.mutate({
       text: text.trim(),
       model_id: selectedModelId,
@@ -132,11 +140,11 @@ export function GenerationPanel() {
       language: language,
       ref_text: transcript || null,
       instruct: voiceDesign.length ? buildInstruct(voiceDesign) : null,
-      ...(modelSettings[selectedModelId ?? "__default__"] ?? {}),
+      params: filteredParams,
     });
   }, [
     canGenerate, selectedProfile, temporaryVoice, promoteTemporaryToPersisted,
-    text, selectedModelId, language, voiceDesign, modelSettings, generate,
+    text, selectedModelId, language, voiceDesign, modelSettings, generate, allModels,
   ]);
 
   return (

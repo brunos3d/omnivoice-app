@@ -25,6 +25,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { buildInstruct } from "@/config/voice-design";
 import { validateTags } from "@/editor/validate";
 import { importVoiceResource } from "@/lib/api";
+import type { ApiError } from "@/lib/api-error";
+import { getRemediation } from "@/lib/api-error";
+import { ApiErrorDialog } from "@/components/common/ApiErrorDialog";
 
 export function GenerationPanel() {
   const text = useAppStore((s) => s.ttsText);
@@ -45,7 +48,8 @@ export function GenerationPanel() {
   const generate = useSubmitGeneration();
   const activeVoice = useActiveVoice();
   const queryClient = useQueryClient();
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<ApiError | null>(null);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isImportingLibrary, setIsImportingLibrary] = useState(false);
 
@@ -117,9 +121,16 @@ export function GenerationPanel() {
       queryClient.invalidateQueries({ queryKey: ["voices-page"] });
       queryClient.invalidateQueries({ queryKey: ["voices"] });
     } catch (e) {
-      setGenerationError(
-        e instanceof Error ? e.message : "Failed to import voice to library.",
-      );
+      const err = e && typeof e === "object" && "category" in (e as Record<string, unknown>)
+        ? (e as ApiError)
+        : {
+            category: "unknown" as const,
+            status: 0,
+            message: e instanceof Error ? e.message : "Failed to import voice to library.",
+            timestamp: new Date().toISOString(),
+          }
+      setGenerationError(err)
+      setErrorDialogOpen(true)
     } finally {
       setIsImportingLibrary(false);
     }
@@ -141,9 +152,16 @@ export function GenerationPanel() {
         voiceProfileId = profile.id;
         transcript = profile.transcript;
       } catch (e) {
-        setGenerationError(
-          e instanceof Error ? e.message : "Failed to import voice for generation.",
-        );
+        const err = e && typeof e === "object" && "category" in (e as Record<string, unknown>)
+          ? (e as ApiError)
+          : {
+              category: "unknown" as const,
+              status: 0,
+              message: e instanceof Error ? e.message : "Failed to import voice for generation.",
+              timestamp: new Date().toISOString(),
+            }
+        setGenerationError(err)
+        setErrorDialogOpen(true)
         setIsImporting(false);
         return;
       }
@@ -169,6 +187,15 @@ export function GenerationPanel() {
     canGenerate, selectedProfile, temporaryVoice, promoteTemporaryToPersisted,
     text, selectedModelId, language, voiceDesign, modelSettings, generate, allModels,
   ]);
+
+  // Promote mutation errors to the structured error dialog.
+  useEffect(() => {
+    if (generate.error) {
+      const err = generate.error as ApiError
+      setGenerationError(err)
+      setErrorDialogOpen(true)
+    }
+  }, [generate.error])
 
   return (
     <div className="flex h-full flex-col">
@@ -320,11 +347,28 @@ export function GenerationPanel() {
         )}
       >
         {generate.isError && (
-          <p className="flex items-center gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {(generate.error as Error)?.message ??
-              "Generation failed. Please try again."}
-          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const err = generate.error as ApiError
+              if (err) {
+                setGenerationError(err)
+                setErrorDialogOpen(true)
+              }
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded-lg bg-error/10 px-3 py-2 text-left text-xs text-error transition-colors hover:bg-error/15"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {(() => {
+                const err = generate.error as ApiError
+                return err ? getRemediation(err.category).title : "Generation failed. Please try again."
+              })()}
+            </span>
+            <span className="text-[10px] uppercase tracking-wide text-error/80">
+              {process.env.NODE_ENV === "production" ? "Details" : "View diagnostics"}
+            </span>
+          </button>
         )}
 
         {selectedModelIncompatible && (
@@ -370,11 +414,26 @@ export function GenerationPanel() {
         )}
 
         {generationError && (
-          <p className="flex items-center gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {generationError}
-          </p>
+          <button
+            type="button"
+            onClick={() => setErrorDialogOpen(true)}
+            className="flex w-full items-center justify-between gap-2 rounded-lg bg-error/10 px-3 py-2 text-left text-xs text-error transition-colors hover:bg-error/15"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {getRemediation(generationError.category).title}
+            </span>
+            <span className="text-[10px] uppercase tracking-wide text-error/80">
+              {process.env.NODE_ENV === "production" ? "Details" : "View diagnostics"}
+            </span>
+          </button>
         )}
+
+        <ApiErrorDialog
+          error={generationError}
+          open={errorDialogOpen}
+          onOpenChange={setErrorDialogOpen}
+        />
 
         {temporaryVoice && (
           <Button

@@ -24,6 +24,7 @@ import type {
   CreateFromPresetRequest,
   VoiceResourceResponse,
 } from "@/types"
+import { parseApiError, type ApiError } from "./api-error"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -32,30 +33,29 @@ export function getApiBaseUrl(): string {
   return API_URL
 }
 
-class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message)
-    this.name = "ApiError"
-  }
-}
+export { ApiError }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_URL}${path}`
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options?.headers || {}),
-    },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }))
-    const message =
-      typeof body.detail === "object" && body.detail !== null
-        ? body.detail.message ?? JSON.stringify(body.detail)
-        : body.detail ?? "Request failed"
-    throw new ApiError(res.status, message)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options?.headers || {}),
+      },
+    })
+  } catch (e) {
+    // Network / abort / CORS — throw a structured ApiError so the consumer
+    // can render it via <ApiErrorDialog />.
+    const err = await parseApiError(null, e, url)
+    throw Object.assign(new Error(err.message), err)
   }
-  return res.json()
+  if (!res.ok) {
+    const err = await parseApiError(res, null, url)
+    throw Object.assign(new Error(err.message), err)
+  }
+  return res.json() as Promise<T>
 }
 
 export async function fetchVoices(): Promise<VoiceProfile[]> {
@@ -187,8 +187,12 @@ export async function fetchArtifactVersions(voiceId: string, modelId: string): P
 }
 
 export async function fetchVariantSummary(): Promise<VariantSummaryItem[]> {
-  const res = await fetch(`${API_URL}/variants/summary`)
-  if (!res.ok) throw new ApiError(res.status, "Failed to fetch variant summary")
+  const url = `${API_URL}/variants/summary`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await parseApiError(res, null, url)
+    throw Object.assign(new Error("Failed to fetch variant summary"), err)
+  }
   return res.json()
 }
 

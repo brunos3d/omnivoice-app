@@ -14,6 +14,7 @@ import {
   setVoiceFavorite,
   fetchModelStatus,
 } from "@/lib/api";
+import { parseApiError, type ApiError } from "@/lib/api-error";
 import type {
   GenerationRequest,
   JobResponse,
@@ -123,8 +124,17 @@ export function useSubmitGeneration() {
   const setActiveJob = useAppStore((s) => s.setActiveJob);
   const setLastRequest = useAppStore((s) => s.setLastRequest);
 
-  return useMutation({
-    mutationFn: (data: GenerationRequest) => submitGeneration(data),
+  return useMutation<{ job_id: string }, ApiError, GenerationRequest>({
+    mutationFn: async (data) => {
+      try {
+        return await submitGeneration(data)
+      } catch (e) {
+        // Re-throw as a structured ApiError so consumers can render it via
+        // <ApiErrorDialog />. The fetch wrapper should already throw ApiError
+        // for non-2xx; this is the network/abort fallback.
+        throw await parseAsyncError(e, "/generate")
+      }
+    },
     onMutate: (data) => {
       setLastRequest(data);
     },
@@ -134,6 +144,15 @@ export function useSubmitGeneration() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
+}
+
+async function parseAsyncError(e: unknown, url: string): Promise<ApiError> {
+  // Response-based errors from the api wrapper already carry the parsed ApiError.
+  if (e && typeof e === "object" && "category" in (e as Record<string, unknown>)) {
+    return e as ApiError
+  }
+  // Fallback: treat as a thrown network/parse error.
+  return await parseApiError(null, e, url)
 }
 
 export function useJobStatus(jobId: string | null) {

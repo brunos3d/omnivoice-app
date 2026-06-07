@@ -48,6 +48,25 @@ export const LANGUAGE_FLAGS: Record<string, string> = {
   arb: "🇸🇦",
 };
 
+/**
+ * Locale-specific overlay for provider codes that don't match the OmniVoice registry.
+ * Kokoro (and any other locale-aware provider) uses BCP-47 style codes like "en-us"
+ * and "en-gb" instead of the family-level "en". Each entry provides a display
+ * ``name`` and ``flag`` so the combobox can render consistently across providers.
+ */
+export const LOCALE_LANGUAGE_OVERLAY: Record<string, SupportedLanguage> = {
+  "en-us": { id: "en-us", name: "English (US)", isoCode: "eng", flag: "🇺🇸" },
+  "en-gb": { id: "en-gb", name: "English (UK)", isoCode: "eng", flag: "🇬🇧" },
+  "es-es": { id: "es-es", name: "Spanish (Spain)", isoCode: "spa", flag: "🇪🇸" },
+  "es-mx": { id: "es-mx", name: "Spanish (Mexico)", isoCode: "spa", flag: "🇲🇽" },
+  "pt-br": { id: "pt-br", name: "Portuguese (Brazil)", isoCode: "por", flag: "🇧🇷" },
+  "pt-pt": { id: "pt-pt", name: "Portuguese (Portugal)", isoCode: "por", flag: "🇵🇹" },
+  "fr-fr": { id: "fr-fr", name: "French (France)", isoCode: "fra", flag: "🇫🇷" },
+  "fr-ca": { id: "fr-ca", name: "French (Canada)", isoCode: "fra", flag: "🇨🇦" },
+  "zh-cn": { id: "zh-cn", name: "Chinese (Simplified)", isoCode: "zho", flag: "🇨🇳" },
+  "zh-tw": { id: "zh-tw", name: "Chinese (Traditional)", isoCode: "zho", flag: "🇹🇼" },
+};
+
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = GENERATED_LANGUAGES.map(
   (l) => ({
     ...l,
@@ -63,7 +82,11 @@ const BY_NAME = new Map(
 export function getLanguageById(
   id: string | null | undefined,
 ): SupportedLanguage | undefined {
-  return id ? BY_ID.get(id) : undefined;
+  if (!id) return undefined
+  // Locale overlay first — covers Kokoro-style BCP-47 codes.
+  const overlaid = LOCALE_LANGUAGE_OVERLAY[id]
+  if (overlaid) return overlaid
+  return BY_ID.get(id)
 }
 
 export function getLanguageByName(
@@ -99,4 +122,19 @@ export function searchLanguages(query: string): SupportedLanguage[] {
       l.id.toLowerCase().includes(q) ||
       l.isoCode.toLowerCase().includes(q),
   );
+}
+
+/**
+ * Unified display string: ``flag name (code)``. Falls back to just the raw value
+ * (or "Auto") when the language cannot be resolved. Used by the combobox trigger
+ * and any card/list renderer that wants consistent label across providers.
+ */
+export function formatLanguage(
+  value: string | null | undefined,
+): string {
+  if (!value) return "Auto"
+  const lang = getLanguageById(value)
+  if (!lang) return value
+  const flag = lang.flag ? `${lang.flag} ` : ""
+  return `${flag}${lang.name} (${lang.id})`
 }

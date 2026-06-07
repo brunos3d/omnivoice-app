@@ -87,7 +87,7 @@ export function LanguageCombobox({
   const triggerLabel = !value
     ? "Auto"
     : selected
-      ? `${selected.flag ? `${selected.flag} ` : ""}${selected.name}`
+      ? `${selected.flag ? `${selected.flag} ` : ""}${selected.name} (${selected.id})`
       : value
 
   return (

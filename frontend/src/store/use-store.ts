@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { VoiceProfile, JobStatus, GenerationSettings, VoiceGenerationDefaults, GenerationRequest, TemporaryVoice, VoiceResourceResponse } from "@/types"
+import type { VoiceProfile, JobStatus, VoiceGenerationDefaults, GenerationRequest, TemporaryVoice, VoiceResourceResponse } from "@/types"
 
 // The application's built-in defaults — used when no voice profile is selected
 // or when the selected profile has no saved generation_defaults.
@@ -12,17 +12,6 @@ export const SYSTEM_DEFAULTS: VoiceGenerationDefaults = {
   denoise: true,
   use_gpu: true,
   voice_design: [],
-}
-
-function defaultsToSettings(d: VoiceGenerationDefaults): GenerationSettings {
-  return {
-    num_step: d.num_step,
-    guidance_scale: d.guidance_scale,
-    speed: d.speed,
-    duration: d.duration,
-    t_shift: d.t_shift,
-    denoise: d.denoise,
-  }
 }
 
 interface UploadedAudio {
@@ -49,7 +38,6 @@ interface AppState {
   recordedAudio: UploadedAudio | null
   activeJobId: string | null
   activeJobStatus: JobStatus | null
-  generationSettings: GenerationSettings
   // Structured Voice Design attributes for the next generation. Loaded from the
   // selected profile's defaults and editable per-generation; the flat OmniVoice
   // `instruct` string is derived from this at submit time.
@@ -98,7 +86,6 @@ interface AppState {
   setActiveJob: (jobId: string | null, status?: JobStatus | null) => void
   setActiveJobStatus: (status: JobStatus | null) => void
   setVoiceDesign: (values: string[]) => void
-  updateGenerationSettings: (settings: Partial<GenerationSettings>) => void
   setUseGpu: (value: boolean) => void
   // Called after a successful "Save to Voice Profile" to sync the reference point.
   setActiveVoiceDefaults: (defaults: VoiceGenerationDefaults | null) => void
@@ -118,7 +105,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   recordedAudio: null,
   activeJobId: null,
   activeJobStatus: null,
-  generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
   voiceDesign: SYSTEM_DEFAULTS.voice_design,
   useGpu: SYSTEM_DEFAULTS.use_gpu,
   activeVoiceDefaults: null,
@@ -132,21 +118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   outputFormat:
     (typeof window !== "undefined" && (localStorage.getItem("omnivoice:outputFormat") as "wav" | "mp3" | "ogg")) || "wav",
 
-  setSelectedModelId: (id) => {
-    const state = get()
-    const prevKey = state.selectedModelId ?? "__default__"
-    const saved = { ...state.modelSettings }
-    saved[prevKey] = { ...state.generationSettings } as unknown as Record<string, unknown>
-    const newKey = id ?? "__default__"
-    const nextSettings = saved[newKey]
-      ? (saved[newKey] as unknown as GenerationSettings)
-      : defaultsToSettings(SYSTEM_DEFAULTS)
-    set({
-      selectedModelId: id,
-      generationSettings: nextSettings,
-      modelSettings: saved,
-    })
-  },
+  setSelectedModelId: (id) => set({ selectedModelId: id }),
   setCurrentAudio: (audio) => set({ currentAudio: audio }),
   setTtsText: (text) => set({ ttsText: text }),
   setLastRequest: (req) => set({ lastRequest: req }),
@@ -163,7 +135,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: null,
-        generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
         voiceDesign: SYSTEM_DEFAULTS.voice_design,
         useGpu: SYSTEM_DEFAULTS.use_gpu,
       })
@@ -178,7 +149,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: defaults,
-        generationSettings: defaultsToSettings(defaults),
         voiceDesign: defaults.voice_design ?? [],
         useGpu: defaults.use_gpu,
         // Auto-apply the voice's language (keep current when the voice has none).
@@ -192,7 +162,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         uploadedAudio: null,
         recordedAudio: null,
         activeVoiceDefaults: null,
-        generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
         voiceDesign: SYSTEM_DEFAULTS.voice_design,
         useGpu: SYSTEM_DEFAULTS.use_gpu,
         // Auto-apply the voice's language (keep current when the voice has none).
@@ -241,7 +210,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       uploadedAudio: null,
       recordedAudio: null,
       activeVoiceDefaults: null,
-      generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
       voiceDesign: SYSTEM_DEFAULTS.voice_design,
       useGpu: SYSTEM_DEFAULTS.use_gpu,
       ttsLanguage: resource.language ?? get().ttsLanguage,
@@ -253,7 +221,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       temporaryVoice: null,
       selectedProfile: null,
       activeVoiceDefaults: null,
-      generationSettings: defaultsToSettings(SYSTEM_DEFAULTS),
       voiceDesign: SYSTEM_DEFAULTS.voice_design,
       useGpu: SYSTEM_DEFAULTS.use_gpu,
     })
@@ -276,26 +243,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setActiveJobStatus: (status) => set({ activeJobStatus: status }),
   setVoiceDesign: (values) => set({ voiceDesign: values }),
 
-  updateGenerationSettings: (settings) =>
-    set((state) => {
-      const modelKey = state.selectedModelId ?? "__default__"
-      const currentModelSettings = state.modelSettings[modelKey] ?? {}
-      return {
-        generationSettings: { ...state.generationSettings, ...settings },
-        modelSettings: {
-          ...state.modelSettings,
-          [modelKey]: { ...currentModelSettings, ...settings },
-        },
-      }
-    }),
-
   updateModelSetting: (key, value) => {
     const state = get()
     const modelKey = state.selectedModelId ?? "__default__"
     const currentSettings = state.modelSettings[modelKey] ?? {}
-    const updated = { ...state.generationSettings, [key]: value as never }
     set({
-      generationSettings: updated,
       modelSettings: {
         ...state.modelSettings,
         [modelKey]: { ...currentSettings, [key]: value },
@@ -321,7 +273,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   resetSettings: () => {
     const ref = get().activeVoiceDefaults ?? SYSTEM_DEFAULTS
     set({
-      generationSettings: defaultsToSettings(ref),
       voiceDesign: ref.voice_design ?? [],
       useGpu: ref.use_gpu,
     })
@@ -339,7 +290,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
 /** Returns the currently active voice — either the persisted profile or the
  *  temporary preset selection. Consumers that need a specific type (e.g.
- *  edit/delete/GenerationSettings save) should read selectedProfile directly. */
+ *  edit/delete/save) should read selectedProfile directly. */
 export function useActiveVoice() {
   const profile = useAppStore((s) => s.selectedProfile)
   const temp = useAppStore((s) => s.temporaryVoice)

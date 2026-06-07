@@ -205,15 +205,6 @@ export interface JobResponse {
 
 export type JobStatus = JobResponse["status"]
 
-export interface GenerationSettings {
-  num_step: number
-  guidance_scale: number
-  speed: number | null
-  duration: number | null
-  t_shift: number
-  denoise: boolean
-}
-
 export interface ModelCapabilities {
   // Contract version (ADR-0003). New capabilities are additive; unknown ones are ignored.
   capability_version?: number

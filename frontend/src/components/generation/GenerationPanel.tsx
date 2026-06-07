@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { VoiceSelector } from "@/components/voice/VoiceSelector";
 import { ModelSelector } from "@/components/generation/ModelSelector";
 import { OutputFormatSelector } from "@/components/generation/OutputFormatSelector";
-import { GenerationSettings } from "@/components/GenerationSettings";
+import { ModelSettingsForm } from "@/components/generation/ModelSettingsForm";
 import { LanguageCombobox } from "@/components/common/LanguageCombobox";
 import { VoiceDesignBuilder } from "@/components/generation/VoiceDesignBuilder";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export function GenerationPanel() {
   const selectedProfile = useAppStore((s) => s.selectedProfile);
   const temporaryVoice = useAppStore((s) => s.temporaryVoice);
   const promoteTemporaryToPersisted = useAppStore((s) => s.promoteTemporaryToPersisted);
-  const generationSettings = useAppStore((s) => s.generationSettings);
+  const modelSettings = useAppStore((s) => s.modelSettings);
   const voiceDesign = useAppStore((s) => s.voiceDesign);
   const setVoiceDesign = useAppStore((s) => s.setVoiceDesign);
   const activeJobId = useAppStore((s) => s.activeJobId);
@@ -132,11 +132,11 @@ export function GenerationPanel() {
       language: language,
       ref_text: transcript || null,
       instruct: voiceDesign.length ? buildInstruct(voiceDesign) : null,
-      ...generationSettings,
+      ...(modelSettings[selectedModelId ?? "__default__"] ?? {}),
     });
   }, [
     canGenerate, selectedProfile, temporaryVoice, promoteTemporaryToPersisted,
-    text, selectedModelId, language, voiceDesign, generationSettings, generate,
+    text, selectedModelId, language, voiceDesign, modelSettings, generate,
   ]);
 
   return (
@@ -199,7 +199,7 @@ export function GenerationPanel() {
               </span>
             </AccordionTrigger>
             <AccordionContent className="px-5 py-1 mb-4">
-              <GenerationSettings />
+              <ModelSettingsForm />
             </AccordionContent>
           </AccordionItem>
 

@@ -30,7 +30,8 @@ export default function HistoryPage() {
   const setCurrentAudio = useAppStore((s) => s.setCurrentAudio)
   const setSelectedProfile = useAppStore((s) => s.setSelectedProfile)
   const setTtsText = useAppStore((s) => s.setTtsText)
-  const updateGenerationSettings = useAppStore((s) => s.updateGenerationSettings)
+  const initModelSettings = useAppStore((s) => s.initModelSettings)
+  const selectedModelId = useAppStore((s) => s.selectedModelId)
   const outputFormat = useAppStore((s) => s.outputFormat)
 
   const [search, setSearch] = useState("")
@@ -75,14 +76,8 @@ export default function HistoryPage() {
     const voice = voices.find((v) => v.id === job.voice_profile_id)
     if (voice) setSelectedProfile(voice)
     const p = job.generation_params || {}
-    updateGenerationSettings({
-      num_step: (p.num_step as number) ?? undefined,
-      guidance_scale: (p.guidance_scale as number) ?? undefined,
-      speed: (p.speed as number | null) ?? null,
-      duration: (p.duration as number | null) ?? null,
-      t_shift: (p.t_shift as number) ?? undefined,
-      denoise: (p.denoise as boolean) ?? undefined,
-    })
+    const modelKey = selectedModelId ?? "__default__"
+    initModelSettings(modelKey, { ...p })
     setTtsText(job.text)
     router.push("/")
   }

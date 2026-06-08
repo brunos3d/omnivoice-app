@@ -13,4 +13,13 @@ httpx==0.28.1
 pydub==0.25.1
 minio==7.2.12
 huggingface_hub
-kokoro
+
+# Phase 3 (R5) — ``kokoro`` is no longer a backend dependency.
+# The runtime container at
+# runtime-registry/kokoro-82m/requirements.txt owns the kokoro
+# framework pin. The backend routes to the runtime via
+# KOKORO_RUNTIME_URL when ``RUNTIME_SERVICE_ENABLED=true``.
+# When the runtime is unreachable and KOKORO_RUNTIME_URL is
+# unset, the in-process path is unavailable (the backend image
+# is model-free; the legacy mock path is removed in a future
+# phase — Phase 7 "Remove direct in-process model execution").

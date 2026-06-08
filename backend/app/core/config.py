@@ -74,6 +74,26 @@ class Settings(BaseSettings):
     # mount or to a custom location.
     RUNTIME_REGISTRY_PATH: Path = Path(__file__).resolve().parent.parent.parent.parent / "runtime-registry"
 
+    # Phase 3 — runtime subsystem wiring (R3).
+    #
+    # When False (CE default), the backend does NOT instantiate
+    # the runtime subsystem at startup: no RuntimeRegistryLoader,
+    # no DockerRuntimeDriver, no RuntimeManager, no
+    # attach_runtime_manager() call. The Models page uses the
+    # legacy DB-status mock. The in-process adapter path is the
+    # only path.
+    #
+    # When True, the backend startup constructs the registry, the
+    # driver, and the manager, attaches the manager to
+    # PeakVoxRuntime, and starts the idle reaper task. The
+    # in-process fallback remains available (KOKORO_RUNTIME_URL
+    # unset) for environments without a runtime container.
+    #
+    # This flag governs infrastructure wiring (control plane).
+    # KOKORO_RUNTIME_URL is adapter data-plane configuration
+    # (where the adapter sends HTTP). The two are independent.
+    RUNTIME_SERVICE_ENABLED: bool = False
+
     @property
     def features(self) -> Features:
         return Features.for_edition(self.EDITION)

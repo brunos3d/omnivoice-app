@@ -1,36 +1,53 @@
-# STATUS — Runtime Services Implementation (Phase 2 ADR)
+# STATUS — Runtime Services Implementation (Phase 2 ADR + Phase 3)
 
 Lifecycle position in the SDD flow:
 `Brainstorm → Specification → Design → Tasks → Implementation → Validation → Review → Merge`
 
-- **Current stage:** ADR Accepted (architecture only; implementation
-  deferred to Phase 2 sub-phases 2A-2D).
-- **Implementation status:** **APPROVED** (ADR-0017 Accepted 2026-06-07;
-  per Constitution §22, "Accepted" is not "Implemented").
-- **Owner / last update:** 2026-06-07.
-- **Architecture review:** 0 blocking issues; non-blocking suggestions
-  applied (Runtime Persistence → `OPEN_DECISIONS.md` Decision 12;
-  ADR_INDEX/IMPLEMENTATION_STATUS consistency fixed).
-- **Outcome (on completion of this phase):** ADR-0017 is recorded in
-  [`ADR_INDEX.md`](../../../DECISIONS/ADR_INDEX.md) and
-  [`IMPLEMENTATION_STATUS.md`](../../../IMPLEMENTATION_STATUS.md).
-  `OPEN_DECISIONS.md` Decision 10 is RESOLVED. State files reflect
-  the new ADR. No code, no migrations, no `runtime-registry/`
-  directory, no `RuntimeManager` class, no `RuntimeDriver` class, no
-  `RuntimeDescriptor` class, no new API endpoints, no Docker
-  integration, no Kokoro migration code — all deferred to Phase 2
-  implementation sub-phases 2A-2D.
+- **Current stage:** Phase 3 IN PROGRESS (post-Phase-2 audit,
+  post-refinements R1–R8).
+- **ADR status:** **ACCEPTED (refined)** — ADR-0017 Accepted
+  2026-06-07; refined 2026-06-08 with 8 post-audit refinements
+  (R1 self-contained entries, R2 `spec.build`, R3
+  `RUNTIME_SERVICE_ENABLED`, R4 runtime-first lifecycle, R5
+  Phase 3 DoD, R6 lazy startup, R7 idle reaper, R8 reference
+  pattern).
+- **Implementation status:** Phase 2 IMPLEMENTED (2A+2B+2C+2D);
+  Phase 3 IN PROGRESS (P1–P9 tasks defined in
+  [`TASKS.md`](./TASKS.md) § Phase 3).
+- **Architecture review:** Runtime Activation Audit PASSED
+  (all 7 checks); Runtime Service Readiness Audit PASSED
+  (architecture correct; runtime service missing). The 8
+  refinements address the readiness audit's findings.
+- **Owner / last update:** 2026-06-08.
 
 ---
 
 ## Sub-phase status
 
+### Phase 2 (complete)
+
 | Sub-phase | Scope | Status | Notes |
 |---|---|---|---|
-| 2A | Foundations: Descriptor, Registry, Manager, Driver protocol, RuntimeInstance, events | NOT_STARTED | Awaiting ADR-0017 accept. |
-| 2B | First driver: `DockerRuntimeDriver` + `lint_no_docker_outside_driver.py` | NOT_STARTED | Depends on 2A. |
-| 2C | Service contract + `KokoroAdapter` integration (`KOKORO_RUNTIME_URL` path) | NOT_STARTED | Depends on 2B. |
-| 2D | CE operations: install / activate / update / remove; runtime-registry/ with Kokoro descriptor | NOT_STARTED | Depends on 2C. |
+| 2A | Foundations: Descriptor, Registry, Manager, Driver protocol, RuntimeInstance, events | **IMPLEMENTED** | 9 modules + 9 test files. Commits `06e1007`–`e0022fc`. |
+| 2B | First driver: `DockerRuntimeDriver` + `lint_no_docker_outside_driver.py` | **IMPLEMENTED** | `DockerRuntimeDriver` (21 tests), lint script (8 tests), manager wiring (11 tests). Commits `d76d330`–`4aef672`. |
+| 2C | Service contract + `KokoroAdapter` integration (`KOKORO_RUNTIME_URL` path) | **IMPLEMENTED** | `HTTPTransport` (14 tests) + `KokoroAdapter` integration (8 tests) + `Settings.KOKORO_RUNTIME_URL` (3 tests) + gated E2E (1 skipped). Commits `7128cc1`–`9c01eea`. |
+| 2D | CE operations: install / activate / update / remove; runtime-registry/ with Kokoro descriptor; bridge activation; CLI skeleton | **IMPLEMENTED** | Manager operations (12 tests), bridge activation (5 tests), CLI skeleton (4 tests), descriptor publish (11 tests). Commits `e5be62b`–`6c78e2e`. |
+| 2 — Audit | Runtime Activation Audit | **PASSED** | All 7 invariant checks PASS. Commit `7da412a`. |
+
+### Phase 3 (in progress)
+
+| Task | Scope | Status | Notes |
+|---|---|---|---|
+| Refinements R1–R8 applied to ADR / SPEC / DESIGN / TASKS / VALIDATION | 2026-06-08 | IN PROGRESS | Doc updates landing; code changes (Settings.RUNTIME_SERVICE_ENABLED, RuntimeBuild Pydantic, idle_timeout in RuntimeLifecycle) landing in this commit. |
+| **P1** | Build `peakvox/kokoro-runtime` (descriptor + Dockerfile + server.py + requirements.txt + README.md + tests/) | NOT_STARTED | Depends on refinements. |
+| **P2** | Wire `RuntimeRegistry` at backend startup (gated on `RUNTIME_SERVICE_ENABLED`) | NOT_STARTED | Depends on P1. |
+| **P3** | Wire `RuntimeManager` idle reaper (R7) | NOT_STARTED | Depends on P2. |
+| **P4** | Connect Models page operations to `RuntimeManager` (R4) | NOT_STARTED | Depends on P3. |
+| **P5** | Add `peakvox-kokoro-runtime` to `docker-compose.yml` | NOT_STARTED | Depends on P1. |
+| **P6** | Execute real E2E generation through runtime service | NOT_STARTED | Depends on P4, P5. |
+| **P7** | Provider validation G6 (contract) + G7 (performance) + G8 (error recovery) + G9 (idle reaper) + G10 (backend without Kokoro) | NOT_STARTED | Depends on P6. |
+| **P8** | Validate backend container starts without `kokoro` installed (R5) | NOT_STARTED | Depends on P7. |
+| **P9** | Update state files (IMPLEMENTATION_STATUS, PROJECT_STATE, etc.) | NOT_STARTED | Final task. |
 
 ---
 
@@ -75,7 +92,7 @@ Lifecycle position in the SDD flow:
 
 ---
 
-## Architectural invariants (recap; 15)
+## Architectural invariants (recap; 21)
 
 1. Models are catalog entities.
 2. Runtimes are deployment units.
@@ -102,6 +119,21 @@ Lifecycle position in the SDD flow:
 15. **The migration is additive** — the in-process path remains
     available for every model until Phase 7 explicitly removes
     it.
+16. **A Runtime Registry entry is self-contained** — descriptor,
+    Dockerfile, source, requirements, README, tests. A
+    descriptor alone is not a valid entry.
+17. **The Manager is image-agnostic** — it never sees the
+    `spec.build` block; build is a pre-flight concern of the
+    registry loader.
+18. **Activation is gated on `RUNTIME_SERVICE_ENABLED`** — the
+    runtime subsystem is opt-in at startup.
+19. **The backend boots with no runtimes active** — lazy
+    activation; no runtime container is started at boot.
+20. **Runtimes auto-stop after `idle_timeout` of inactivity** —
+    the manager owns the idle timer; the container is not torn
+    down on every request.
+21. **Every new runtime mirrors the Kokoro reference shape** —
+    no asymmetric runtime directories in the registry.
 
 ---
 

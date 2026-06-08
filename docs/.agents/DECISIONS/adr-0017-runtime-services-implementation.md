@@ -1,7 +1,7 @@
 # ADR-0017: Runtime Services Implementation (Phase 2 Implementation ADR)
 
-- **Status:** Proposed
-- **Date:** 2026-06-07
+- **Status:** Accepted (refined 2026-06-08)
+- **Date:** 2026-06-07 (refined 2026-06-08)
 - **Deciders:** PeakVox architecture.
 - **Supersedes:** none.
 - **Superseded by:** none.
@@ -271,6 +271,213 @@ This ADR *strengthens* (never weakens):
   additive via the SQLite-safe runner.
 
 No exception to the constitution is introduced.
+
+### Refinements (2026-06-08, post-Phase-2 audit)
+
+The Runtime Service Readiness Audit
+([`AUDITS/runtime-service-readiness-audit.md`](../VALIDATION/AUDITS/runtime-service-readiness-audit.md))
+confirmed Phase 2 produced the runtime infrastructure but did not
+yet deliver a concrete runtime service. Five refinements were
+applied to make Phase 3 implementable. None of them contradict the
+original decision; all are clarifications or extensions.
+
+**R1. Registry structure — self-contained entries.**
+
+Each `runtime-registry/<runtime_id>/` entry is now required to be
+**self-contained** (build + run + validate + publish from one
+directory). A descriptor alone is not sufficient; the entry must
+include the source necessary to build the image it describes.
+
+```
+runtime-registry/
+└── <runtime_id>/
+    ├── descriptor.json       (the contract)
+    ├── Dockerfile            (CE build)
+    ├── server.py             (CE entrypoint)
+    ├── requirements.txt      (CE runtime deps)
+    ├── README.md             (operator documentation)
+    └── tests/                (CE validation)
+```
+
+This becomes the reference shape for every runtime added in the
+future: F5-TTS, XTTS, OpenVoice, Fish, OmniVoice, etc.
+
+**R2. Descriptor enhancement — `spec.build` block.**
+
+Today the descriptor only declared a prebuilt OCI image
+(`spec.image.repository` + `spec.image.tag`). To support both
+local builds (CE) and prebuilt images (Cloud) without changing
+`RuntimeManager` behavior, a new optional block is added:
+
+```json
+"spec": {
+  "image": { "repository": "peakvox/kokoro-runtime", "tag": "0.1.0" },
+  "build": {
+    "entrypoint": "server.py",
+    "build_context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "service": { ... },
+  ...
+}
+```
+
+- CE: descriptor carries `build`; a build script reads it, builds
+  the image, updates `spec.image.digest` to the local-build sha,
+  and proceeds with run.
+- Cloud: descriptor omits `build`; `spec.image` is a published
+  image in a registry.
+- `RuntimeManager` is **image-agnostic**. It only ever looks at
+  `spec.image`; the `build` block is a pre-flight concern of the
+  registry loader / build script, never of the manager.
+
+**R3. `RuntimeManager` activation rule — `RUNTIME_SERVICE_ENABLED`.**
+
+`KOKORO_RUNTIME_URL` is **adapter configuration** (data plane —
+where the adapter sends HTTP requests). It is **not** infrastructure
+configuration (control plane — whether the backend wires up the
+runtime subsystem at all).
+
+A new `Settings.RUNTIME_SERVICE_ENABLED: bool = False` is introduced
+(CE default off, Cloud default true, future). Backend startup wires
+up `RuntimeRegistry` + `RuntimeManager` + `DockerRuntimeDriver` only
+when this flag is true. The manager remains completely
+**provider-agnostic** — it must not know about Kokoro, F5-TTS,
+XTTS, OpenVoice, or Fish Audio.
+
+**R4. Model lifecycle direction — runtime first, model status derived.**
+
+The Model is a **catalog entity**. The Runtime is the **operational
+entity**. Model status must reflect runtime state, not the other
+way around.
+
+Lifecycle direction:
+
+```
+Install Runtime
+  → Pull / build runtime image
+    → Install runtime
+      → Activate runtime
+        → Runtime Ready
+          → Update Model Status (derived from runtime state)
+```
+
+The Models page "Install Model" / "Activate Model" actions delegate
+to `RuntimeManager.install(runtime_id)` /
+`RuntimeManager.activate(runtime_id)`. The model id is resolved to
+the default `runtime_id` via the registry (`is_default = true`,
+highest `priority`). The model row's `status` column is updated
+**after** the runtime transition succeeds. Runtime state does not
+reflect model state; model state reflects runtime state. A runtime
+can exist without a model (rare, future); a model cannot be
+"active" without a runtime.
+
+**R5. Phase 3 Definition of Done — backend without Kokoro.**
+
+The strongest architectural proof is:
+
+> The backend container must start successfully with Kokoro
+> completely removed from the backend Python environment.
+> Voice generation must still succeed through the Runtime Service.
+
+This is the test that **the backend is orchestration and the
+runtime container is the inference engine**. The runtime container
+owns weights, model packages, inference framework, and runtime
+dependencies. The backend owns none of them. This invariant
+becomes a Phase 3 acceptance gate (see
+[`VALIDATION.md`](../SPECS/FEATURES/runtime-services-implementation/VALIDATION.md)
+§ Phase 3 DoD).
+
+**R6. Lazy startup — no runtimes active at backend boot.**
+
+The backend boots with **zero active runtimes**. Runtimes activate
+on first `RuntimeManager.resolve(model_id)` call. The wrong
+shape — start Kokoro, OmniVoice, F5, XTTS, OpenVoice all at boot
+— does not scale (resource waste, slow boot, GPU contention).
+The correct shape is: boot fast, lazy activation on first use,
+idle timeout frees resources when no one is calling.
+
+This is consistent with ADR-0017 §3.4 (lazy activation by
+default); the refinement makes the contract explicit: **at
+backend startup, no runtime container is started, and the
+RuntimeManager's instance cache is empty**.
+
+**R7. Idle timeout — auto-stop after N minutes of inactivity.**
+
+Stopping a runtime container after every generation is
+unacceptable (e.g. 2s startup + 10s model load + 1s inference =
+13s for 1s of useful work). Keeping a runtime container
+indefinitely is also unacceptable (GPU / VRAM held forever).
+The middle ground: **the container stays Active while in use,
+and is auto-stopped after a configurable idle timeout**.
+
+```json
+"spec": {
+  "lifecycle": {
+    "install_policy": "pull-on-install",
+    "health_interval_seconds": 10,
+    "health_timeout_seconds": 3,
+    "start_timeout_seconds": 60,
+    "restart_policy": "on-failure",
+    "idle_timeout": "15m"
+  }
+}
+```
+
+| Edition | Default `idle_timeout` | Rationale |
+|---|---|---|
+| Community Edition | `15m` | Release GPU/VRAM/RAM after 15 minutes of inactivity; keep CE responsive. |
+| Cloud | `never` | The autoscaler / scheduler owns lifecycle. |
+
+Allowed values: `never`, `15m`, `30m`, `1h`, `6h`. The manager
+records `last_request_at` on every `resolve()`; a background
+task checks idle runtimes and calls `stop_runtime` when the
+timeout elapses. On next `resolve()`, the manager
+re-activates the runtime (warm or cold start).
+
+**R8. Reference implementation pattern.**
+
+`runtime-registry/kokoro-82m/` is the **canonical shape** for
+every future runtime. The directory contains exactly:
+
+```
+runtime-registry/kokoro-82m/
+├── descriptor.json       (the contract)
+├── Dockerfile            (CE build)
+├── server.py             (CE entrypoint)
+├── requirements.txt      (CE runtime deps)
+├── README.md             (operator documentation)
+└── tests/                (CE validation)
+```
+
+When the next runtime is added (F5-TTS, XTTS, OpenVoice, Fish,
+OmniVoice), it copies this shape verbatim and adjusts:
+
+1. `descriptor.json`: `metadata.id`, `metadata.name`,
+   `metadata.provider`, `metadata.version`,
+   `spec.image.{repository,tag,digest}`,
+   `spec.service.{port, paths}`,
+   `spec.model_binding.model_id`,
+   `spec.build.{entrypoint,build_context,dockerfile}`,
+   `spec.requirements.{gpu, min_vram_gb, cpu_cores, memory_gb}`,
+   `spec.capabilities` (subset of the bound model),
+   `spec.lifecycle.idle_timeout`.
+2. `Dockerfile`: change `FROM`, copy the new source, install
+   the new `requirements.txt`, expose the new port.
+3. `server.py`: implement the 5-endpoint Runtime Service
+   Contract (calls into the new framework).
+4. `requirements.txt`: pin the new framework.
+5. `README.md`: provider-specific operator notes.
+6. `tests/`: contract tests + provider-specific unit tests.
+
+**No new runtime ships without a copy of the `kokoro-82m/`
+shape.** This is what makes the Runtime Registry a true
+catalog of installable runtimes rather than a folder of
+asymmetric artifacts.
+
+Kokoro is the only runtime built in Phase 3. F5-TTS, XTTS,
+OpenVoice, Fish, OmniVoice are deferred to Phases 4-6 and
+must follow the Kokoro reference.
 
 ### Architectural invariants (15)
 

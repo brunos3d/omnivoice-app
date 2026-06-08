@@ -7,6 +7,10 @@
 > `RuntimeDriver` class, no `RuntimeDescriptor` Pydantic class, no
 > `runtime-registry/` directory, no Docker integration, no new API
 > endpoints, no Kokoro migration code.**
+>
+> **Refinements (2026-06-08, post-audit):** see §1.1 (R2 — `spec.build`),
+> §2.1 (R1 — self-contained entries), §3.7 (R3 — `RUNTIME_SERVICE_ENABLED`),
+> §3.8 (R4 — runtime-first lifecycle), §9 (R4 — CE operations revised).
 
 ---
 
@@ -51,17 +55,25 @@ to add a new model.
 
 ### 1.1 Schema
 
-The descriptor is a YAML document, conventionally named `runtime.yaml`,
-co-located with the runtime image in the registry:
+The descriptor is a JSON document, conventionally named
+`descriptor.json`, co-located with the runtime source in the
+registry:
 
 ```
 runtime-registry/
 └── <runtime_id>/
-    ├── runtime.yaml          ← this descriptor
-    ├── docker-compose.yml    ← driver-specific (not the contract)
-    ├── env.example
-    └── README.md
+    ├── descriptor.json       ← this descriptor (the contract)
+    ├── Dockerfile            ← CE build (R1, R2)
+    ├── server.py             ← CE entrypoint (R1)
+    ├── requirements.txt      ← CE runtime deps (R1)
+    ├── README.md             ← operator documentation (R1)
+    └── tests/                ← CE validation (R1)
 ```
+
+Each entry is **self-contained**: the descriptor, the source to
+build the image, the requirements, the operator documentation,
+and the validation tests all live in one directory. The directory
+is the runtime; the descriptor alone is not.
 
 The full schema (field name → type → required → description):
 
@@ -70,7 +82,7 @@ The full schema (field name → type → required → description):
 | `api_version` | string | yes | Schema version. First version: `peakvox.io/v1`. |
 | `kind` | string | yes | Always `Runtime`. |
 | `metadata` | object | yes | Identity + human-readable metadata. |
-| `spec` | object | yes | Behavior: image, capabilities, requirements, service contract. |
+| `spec` | object | yes | Behavior: image, build, capabilities, requirements, service contract. |
 
 `metadata` sub-fields:
 
@@ -89,7 +101,8 @@ The full schema (field name → type → required → description):
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `runtime_type` | enum | yes | `docker` (first version). |
-| `image` | object | yes | Image identity. |
+| `image` | object | yes | Image identity (always present, always used by `RuntimeManager`). |
+| `build` | object | no | Local-build metadata (CE). Manager-agnostic; never read by `RuntimeManager`. |
 | `service` | object | yes | The Runtime Service Contract. |
 | `capabilities` | list[string] | yes | Subset of the model's `ModelCapabilities`. |
 | `requirements` | object | yes | Host-side requirements. |
@@ -103,6 +116,22 @@ The full schema (field name → type → required → description):
 | `repository` | string | yes | OCI image repository (e.g. `peakvox/kokoro-runtime`). |
 | `tag` | string | yes | Image tag (e.g. `1.4.2` — never `latest` in production paths). |
 | `digest` | string | no | Pin to a specific image digest (sha256:...). |
+
+`spec.build` (R2 — local-build metadata, CE-only):
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `entrypoint` | string | yes | The file inside the image that is the HTTP service entrypoint (e.g. `server.py`). |
+| `build_context` | string | yes | Path (relative to the descriptor's directory) used as the Docker build context. |
+| `dockerfile` | string | no | Path to the Dockerfile (relative to `build_context`). Defaults to `Dockerfile`. |
+
+The `build` block is **optional**. CE descriptors carry it so a
+CE build script can `docker build` the image locally. Cloud
+descriptors omit it; the `spec.image` is a published image in a
+registry. **`RuntimeManager` never reads `spec.build`** — the
+manager is image-agnostic. The build script is a pre-flight
+concern of the registry loader / deployment tooling, never of
+the manager or driver.
 
 `spec.service`:
 
@@ -143,6 +172,16 @@ The full schema (field name → type → required → description):
 | `health_timeout_seconds` | int | no | Per-probe timeout. Defaults to 3. |
 | `start_timeout_seconds` | int | no | Max wait for first `/ready` after start. Defaults to 60. |
 | `restart_policy` | enum | no | `on-failure` (default) / `always` / `never`. |
+| `idle_timeout` | enum | no | `never` (Cloud default) / `15m` (CE default) / `30m` / `1h` / `6h`. (R7) |
+
+`idle_timeout` (R7) controls how long an Active runtime container
+stays alive after the last `resolve()` call. The
+`RuntimeManager` records `last_request_at` on every resolve and
+runs a background reaper task that calls `stop_runtime` when
+the configured timeout elapses. A subsequent `resolve()` triggers
+re-activation. The default is `15m` in CE; `never` in Cloud
+(autoscaler / scheduler owns lifecycle). Allowed values form a
+closed vocabulary: `never`, `15m`, `30m`, `1h`, `6h`.
 
 ### 1.2 Example — full descriptor
 
@@ -257,16 +296,23 @@ documents. It is not a database; it is a directory on disk.
 
 ```
 <registry_root>/
-├── kokoro-cpu/
-│   ├── runtime.yaml
-│   ├── docker-compose.yml
-│   ├── env.example
-│   └── README.md
-├── kokoro-cuda/
-│   ├── runtime.yaml
-│   └── ...
-├── f5-tts-cpu/
-├── f5-tts-cuda/
+├── kokoro-82m/
+│   ├── descriptor.json     ← the contract
+│   ├── Dockerfile          ← CE build (R1)
+│   ├── server.py           ← CE entrypoint
+│   ├── requirements.txt    ← CE runtime deps
+│   ├── README.md           ← operator documentation
+│   └── tests/              ← CE validation
+├── f5-tts/
+│   ├── descriptor.json
+│   ├── Dockerfile
+│   ├── server.py
+│   ├── requirements.txt
+│   ├── README.md
+│   └── tests/
+├── xtts/
+├── openvoice/
+├── fish-audio/
 ├── omnivoice-local/
 ├── omnivoice-cloud/
 └── ...
@@ -277,10 +323,17 @@ documents. It is not a database; it is a directory on disk.
 descriptors are authored out-of-band, not mutated by the running
 system.
 
+Each entry is **self-contained** (R1): descriptor + source +
+requirements + documentation + tests. A new runtime is added by
+**copying a working entry and adjusting six fields in the
+descriptor + the source in `server.py`**. The reference entry is
+`kokoro-82m/`; the next runtime added (F5-TTS, XTTS, OpenVoice,
+Fish, OmniVoice) follows the same shape.
+
 ### 2.2 Descriptor loading
 
 The `RuntimeRegistryLoader` walks `<registry_root>`, reads each
-`runtime.yaml`, validates it against the descriptor schema, and
+`descriptor.json`, validates it against the descriptor schema, and
 indexes the result.
 
 Validation rejects:
@@ -291,6 +344,11 @@ Validation rejects:
   capabilities.
 - Edition mismatch (`spec.requirements.edition` not a subset of
   `metadata.edition`).
+- (R1) A registry entry that has a `descriptor.json` but no
+  `Dockerfile` (or vice-versa) is logged as a warning but not
+  rejected — the registry may legitimately host prebuilt-only
+  descriptors in Cloud. The CE build path rejects entries that
+  lack the build files.
 
 Failures are logged with the path of the offending file and the
 runtime is excluded from the index; one bad descriptor does not
@@ -427,6 +485,7 @@ Adapter
         → if missing or not Active:
           → driver.start_runtime(runtime_id) → instance
           → cache the instance
+        → touch last_request_at = now (R7)
         → return endpoint
           → build endpoint as
               f"{protocol}://{instance.host}:{instance.port}"
@@ -445,10 +504,22 @@ Selection rules (deterministic, auditable):
 5. **First match** — if still ambiguous, the first descriptor in
    registry order.
 
-Activation is **lazy by default**: the first request for a runtime
-triggers `start_runtime` if the instance is not already `Active`. The
-manager maintains an in-memory map `(runtime_id → RuntimeInstance)`
-that the driver populates and updates.
+**Activation is lazy (R6).** The backend boots with **zero** active
+runtimes; the first `resolve(model_id)` call triggers
+`start_runtime` if the instance is not already `Active`. The
+manager maintains an in-memory map
+`(runtime_id → RuntimeInstance)` that the driver populates and
+updates. The cache is empty at backend startup; the manager does
+not pre-warm any runtime.
+
+**Idle reaping (R7).** The manager records `last_request_at` on
+every successful `resolve()`. A background task wakes up
+periodically and calls `stop_runtime` for any Active instance
+whose `last_request_at` is older than `descriptor.lifecycle.idle_timeout`.
+The instance stays in the cache in `Installed` state (image
+preserved) so the next `resolve()` can re-activate it without a
+re-pull. `idle_timeout = never` (Cloud default) disables the
+reaper.
 
 ### 3.5 Concurrency and consistency
 
@@ -460,6 +531,8 @@ that the driver populates and updates.
   backend restart, the cache is empty and runtimes must be
   re-activated. This is **explicitly** the Phase 2 design; a future
   ADR adds persistence (OPEN_DECISIONS Decision 12+).
+- The manager does **not** pre-warm any runtime at startup (R6).
+  The cache is empty by construction until the first `resolve()`.
 
 ### 3.6 Observability
 
@@ -474,11 +547,97 @@ The manager emits structured events for every state transition:
 - `runtime.update.requested` / `runtime.update.completed`
 - `runtime.remove.requested` / `runtime.remove.completed`
 - `runtime.health.changed` (ready/unready transitions)
+- `runtime.idle.timeout` (auto-stopped by the reaper, R7)
+- `runtime.idle.touch` (every `resolve()` updates `last_request_at`)
 
 These events are emitted via the existing `app.core.events` channel
 (or whatever the project's structured event bus is at implementation
 time). They are **not** domain events (no `generation.*`; no
 `variant.*`).
+
+### 3.7 Settings — `RUNTIME_SERVICE_ENABLED` (R3)
+
+The runtime subsystem is opt-in at backend startup. The
+`Settings` class gains a new field:
+
+```python
+RUNTIME_SERVICE_ENABLED: bool = False  # CE default; Cloud default true (future)
+```
+
+| Edition | Default | Rationale |
+|---|---|---|
+| Community Edition | `False` | The default CE experience continues to work in-process. Opt-in to Runtime Services. |
+| Cloud | `True` (future) | Cloud is built around the runtime subsystem. |
+
+When the flag is `False`:
+
+- `main.py` lifespan does **not** call
+  `attach_runtime_manager(...)`.
+- The runtime subsystem is dead code in the running process.
+- The Models page uses the legacy DB-status mock
+  (`model_lifecycle.install_model` / `activate_model` are pure
+  status transitions; no runtime ops are attempted).
+- The in-process adapter path is the only path.
+
+When the flag is `True`:
+
+- `main.py` lifespan constructs `RuntimeRegistryLoader`,
+  `DockerRuntimeDriver`, and `RuntimeManager`, then calls
+  `PeakVoxRuntime.attach_runtime_manager(manager)`.
+- The Models page routes Install/Activate/Deactivate/Update/Remove
+  through the manager.
+- The adapter path dispatches on `KOKORO_RUNTIME_URL` (adapter
+  data-plane config) per the 2C contract; the manager activation
+  is **independent** of the adapter's URL setting.
+
+**The flag governs infrastructure wiring, not adapter routing.**
+`KOKORO_RUNTIME_URL` remains the adapter's data-plane setting.
+
+### 3.8 Lifecycle direction — Runtime first, Model status derived (R4)
+
+The Model is a **catalog entity**. The Runtime is the
+**operational entity**. Model status must reflect runtime state;
+runtime state must not reflect model state.
+
+The canonical lifecycle:
+
+```
+[Operator clicks "Install" on a Model in the Models page]
+  → backend resolves model_id → default runtime_id via registry
+    → RuntimeManager.install(runtime_id)
+      → driver.install_runtime (docker pull, instance in Installed state)
+        → cache the instance
+  → on install success: model.status ← INSTALLED
+
+[Operator clicks "Activate"]
+  → RuntimeManager.activate(runtime_id)
+    → driver.start_runtime (container started, /ready probed)
+      → instance in Active state, health_state Ready
+  → on activate success: model.status ← ACTIVE
+
+[Runtime becomes idle for idle_timeout (R7)]
+  → reaper: driver.stop_runtime (container stopped, image preserved)
+    → instance in Installed state (not removed)
+  → model.status ← INSTALLED (runtime is still installed, just inactive)
+
+[Operator clicks "Remove"]
+  → RuntimeManager.remove(runtime_id)
+    → driver.remove_runtime (container stopped, image removed)
+  → on remove success: model.status ← NOT_INSTALLED
+```
+
+Model status values derived from runtime state:
+
+| Model status | Meaning | Runtime state |
+|---|---|---|
+| `NOT_INSTALLED` | No runtime is installed for this model. | No cached instance, or instance `Removed`. |
+| `INSTALLED` | Runtime image is present, container is not running. | Cached instance in `Installed` or `Stopped` state. |
+| `ACTIVE` | Runtime is serving inference. | Cached instance in `Active` state with `health_state = Ready`. |
+| `FAILED` | Last install/start attempt failed. | Cached instance in `Failed` state. |
+
+The Models page **never** directly sets `model.status`; the
+manager's transition events update the status row. The transition
+is a side-effect of the runtime transition, never the cause.
 
 ---
 
@@ -1093,46 +1252,83 @@ mutable state to roll back.
 CE is the first edition in which the Runtime Service architecture
 becomes operational. The operations are uniform at the Runtime
 Manager level; the `DockerRuntimeDriver` provides the CE-specific
-substrate.
+substrate. Per R4, the lifecycle is **Runtime first, Model status
+derived**.
 
-### 9.1 Installation
+### 9.1 Install — pull image, create Installed instance
 
-Operator flow (manual or scripted):
+Operator flow (typically triggered from the Models page):
 
-1. Author `runtime-registry/<runtime_id>/runtime.yaml` (see §1.2).
-2. Author the `docker-compose.yml` for the runtime image.
-3. Restart the PeakVox backend. The Runtime Manager loads the
-   registry on startup.
-4. Trigger `RuntimeManager.install(runtime_id)` via:
-   - **CLI:** `peakvox runtime install <runtime_id>`
-   - **API:** `POST /api/v1/runtimes/{id}/install`
-     *(endpoint reserved; not created in this ADR's phase)*
+1. Operator clicks "Install" on a model in the Models page.
+2. The backend resolves `model_id` → the default `runtime_id` via
+   the registry (`is_default = true`, highest `priority`).
+3. The API calls `RuntimeManager.install(runtime_id)`.
+4. The manager:
+   - Reads the descriptor from the registry.
+   - Calls `DockerRuntimeDriver.install_runtime(runtime_id, descriptor)`.
+   - The driver pulls the image.
+   - The instance is created in state `Installed`.
+   - The manager caches the instance.
+5. On install success: `model.status ← INSTALLED` (the model
+   row's status is updated as a side-effect of the runtime
+   transition).
 
-The manager:
-- Reads the descriptor from the registry.
-- Calls `DockerRuntimeDriver.install_runtime(runtime_id, descriptor)`.
-- The driver pulls the image.
-- The instance is created in state `Installed`.
-- The manager caches the instance.
+Result: image present locally, container NOT running. The runtime
+is ready to be activated.
 
-### 9.2 Activation
+### 9.2 Activate — start container, runtime becomes Ready
 
 Operator flow:
 
-1. Trigger `RuntimeManager.activate(runtime_id)` (CLI or API).
-2. The manager calls `DockerRuntimeDriver.start_runtime(runtime_id)`.
-3. The driver starts the container.
-4. The driver probes `/ready` until 200 or
-   `lifecycle.start_timeout_seconds` elapses.
-5. On success: state `Active`, `health_state` `Ready`.
-6. On failure: state `Failed`, error captured and emitted as
-   `runtime.start.failed`.
+1. Operator clicks "Activate" on a model.
+2. The API calls `RuntimeManager.activate(runtime_id)`.
+3. The manager:
+   - Calls `DockerRuntimeDriver.start_runtime(runtime_id)`.
+   - The driver starts the container.
+   - The driver probes `/ready` until 200 or
+     `lifecycle.start_timeout_seconds` elapses.
+   - On success: state `Active`, `health_state` `Ready`.
+   - The manager records `last_request_at = now` (R7).
+4. On activate success: `model.status ← ACTIVE`.
 
-The first **resolve** call (§3.4) triggers activation lazily
-if the instance is not already `Active`. Manual activation is for
-warm-up scenarios.
+The first **resolve** call (§3.4) triggers activation lazily if
+the instance is `Installed` and the model is not yet `Active`.
+Manual activation is for warm-up scenarios.
 
-### 9.3 Update
+### 9.3 Deactivate — stop container, runtime remains installed
+
+Operator flow:
+
+1. Operator clicks "Deactivate" on a model.
+2. The API calls `RuntimeManager.deactivate(runtime_id)`.
+3. The manager:
+   - Calls `DockerRuntimeDriver.stop_runtime(runtime_id)`.
+   - The container is stopped; the image is preserved.
+   - State becomes `Installed` (or `Stopped`).
+4. On deactivate success: `model.status ← INSTALLED` (the image
+   is still present, container is not running).
+
+Result: container stopped, image preserved. The next Activate
+call is fast (no re-pull).
+
+### 9.4 Idle reaping — auto-stop after `idle_timeout`
+
+The manager runs a background reaper task. Periodically (e.g. every
+60 seconds), the reaper:
+
+1. Iterates the instance cache.
+2. For each `Active` instance, checks
+   `now - last_request_at > descriptor.lifecycle.idle_timeout`.
+3. If true, calls `driver.stop_runtime(runtime_id)`.
+4. Emits `runtime.idle.timeout` event.
+5. The manager's cache entry transitions to `Installed`; the
+   image is preserved.
+
+A subsequent `resolve()` call triggers re-activation (warm
+start — the image is local; no re-pull). `idle_timeout = never`
+disables the reaper for that runtime (Cloud default).
+
+### 9.5 Update — re-pull, leave Installed
 
 Operator flow:
 
@@ -1147,25 +1343,31 @@ Operator flow:
 4. The Active Artifact (ADR-0009) is **preserved** across updates.
    The runtime re-reads the artifact on next generation.
 
-### 9.4 Removal
+### 9.6 Remove — stop + remove image
 
 Operator flow:
 
-1. Trigger `RuntimeManager.remove(runtime_id)`.
-2. The manager:
-   - Calls `remove_runtime` (the driver stops the container,
-     removes the image).
+1. Operator clicks "Remove" on a model.
+2. The API calls `RuntimeManager.remove(runtime_id)`.
+3. The manager:
+   - Calls `remove_runtime` (the driver stops the container if
+     active, removes the image).
    - Drops the instance from the cache.
-3. The descriptor remains in the registry (read-only). To
-   unregister, the operator deletes the descriptor file and
-   restarts the backend.
+4. On remove success: `model.status ← NOT_INSTALLED`.
 
-### 9.5 Edition-specific quirks
+The descriptor remains in the registry (read-only). To
+unregister, the operator deletes the descriptor file and
+restarts the backend.
+
+### 9.7 Edition-specific quirks
 
 - CE only supports `runtime_type: docker` (the first driver).
 - The `runtime-registry/` directory is included in the CE
   distribution by default (with the Kokoro runtime pre-published
   for ease of use).
+- CE default `idle_timeout` is `15m`; CE default
+  `RUNTIME_SERVICE_ENABLED` is `False`. Both are operator-
+  configurable.
 - In CE, if Docker is not installed, the in-process fallback is
   the only path. The `RuntimeManager` reports
   `RuntimeRequirementsNotMet` when the user tries to install

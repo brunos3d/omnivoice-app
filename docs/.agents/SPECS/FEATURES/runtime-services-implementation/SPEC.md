@@ -1,7 +1,8 @@
 # SPEC — Runtime Services Implementation (Phase 2 ADR)
 
-> **Status:** PROPOSED (architecture only; implementation deferred to Phase 2 implementation)
-> **Date:** 2026-06-07
+> **Status:** ACCEPTED (architecture accepted 2026-06-07; refined
+> 2026-06-08 with the 5 post-audit refinements)
+> **Date:** 2026-06-07 (refined 2026-06-08)
 > **ADR:** [`adr-0017-runtime-services-implementation.md`](../../../DECISIONS/adr-0017-runtime-services-implementation.md)
 > **Parent:** [`adr-0016-models-as-runtime-services.md`](../../../DECISIONS/adr-0016-models-as-runtime-services.md) (Accepted)
 > **Method:** Architecture documentation. No code, no `RuntimeManager` class, no `RuntimeDriver` class, no `runtime-registry/` directory, no Docker integration, no API endpoints, no Kokoro migration.
@@ -252,6 +253,87 @@ defines the surface — `KubernetesRuntimeDriver` is a separate ADR):
 
 ---
 
+## Refinements (2026-06-08, post-Phase-2 audit)
+
+After Phase 2 implementation completed, the Runtime Service
+Readiness Audit
+([`AUDITS/runtime-service-readiness-audit.md`](../../../VALIDATION/AUDITS/runtime-service-readiness-audit.md))
+found the runtime infrastructure complete but the first concrete
+runtime service missing. Eight refinements were applied before
+Phase 3 implementation begins:
+
+- **R1 — Self-contained registry entries.** Every
+  `runtime-registry/<runtime_id>/` directory must contain the
+  source needed to build, run, validate, and publish the runtime
+  (descriptor, Dockerfile, server entrypoint, requirements,
+  README, tests). See
+  [DESIGN §2](../SPECS/FEATURES/runtime-services-implementation/DESIGN.md#2-runtimeregistry).
+- **R2 — `spec.build` block.** The descriptor may carry build
+  metadata (CE) or omit it (Cloud, prebuilt). `RuntimeManager`
+  is image-agnostic. See
+  [DESIGN §1.1](../SPECS/FEATURES/runtime-services-implementation/DESIGN.md#11-schema).
+- **R3 — `RUNTIME_SERVICE_ENABLED` flag.** Backend startup wires
+  up the runtime subsystem only when this flag is true. CE
+  default false, Cloud default true (future). See
+  [DESIGN §3](../SPECS/FEATURES/runtime-services-implementation/DESIGN.md#3-runtimemanager)
+  and §3.7 (new).
+- **R4 — Runtime-first lifecycle.** The Runtime is the
+  operational entity; the Model is the catalog entity; Model
+  status reflects Runtime state. See
+  [DESIGN §9](../SPECS/FEATURES/runtime-services-implementation/DESIGN.md#9-community-edition-operations)
+  (revised) and §3.8 (new).
+- **R5 — Phase 3 DoD.** The backend container must start
+  successfully with `kokoro` removed from the backend Python
+  environment; voice generation must still succeed through the
+  Runtime Service. See
+  [VALIDATION § Phase 3 DoD](./VALIDATION.md).
+- **R6 — Lazy startup.** The backend boots with **zero** active
+  runtimes. Runtimes activate on first `RuntimeManager.resolve`
+  call. No runtime container is started at backend boot. The
+  instance cache is empty at startup.
+- **R7 — Idle timeout.** Each runtime declares
+  `spec.lifecycle.idle_timeout` (CE default `15m`, Cloud default
+  `never`). The `RuntimeManager` records `last_request_at` on
+  every `resolve()` and auto-stops the runtime container when
+  the timeout elapses. Subsequent requests trigger re-activation
+  (warm or cold).
+- **R8 — Reference implementation pattern.** The
+  `runtime-registry/kokoro-82m/` shape is canonical; every
+  future runtime (F5-TTS, XTTS, OpenVoice, Fish, OmniVoice)
+  mirrors it. Kokoro is the only runtime built in Phase 3;
+  F5-TTS, XTTS, OpenVoice, Fish, OmniVoice are deferred to
+  Phases 4-6.
+
+These refinements are **clarifications and extensions** of the
+original ADR, not contradictions. The 15 architectural invariants
+remain in force. Six new invariants are added (see below).
+
+### New invariants (from the refinements)
+
+16. **A Runtime Registry entry is self-contained.** A descriptor
+    alone is not a valid registry entry. The entry must include
+    the source required to build the image it describes.
+17. **The Manager is image-agnostic.** `RuntimeManager` only
+    consumes `spec.image`; the `spec.build` block is a pre-flight
+    concern of the registry loader / build script, never of the
+    manager.
+18. **Activation is gated on `RUNTIME_SERVICE_ENABLED`.** The
+    runtime subsystem is wired into the backend only when the
+    operator opts in. The manager does not know which provider
+    (Kokoro, F5, etc.) is served; the providers are in descriptors
+    and adapter config, not in the manager.
+19. **The backend boots with no runtimes active.** No runtime
+    container is started at backend boot. The first
+    `RuntimeManager.resolve` call activates the runtime lazily.
+20. **Runtimes auto-stop after `idle_timeout` of inactivity.**
+    The manager owns the idle timer; the runtime is not
+    re-evaluated on every request; cold start is acceptable on
+    re-activation.
+21. **Every new runtime mirrors the Kokoro reference shape.**
+    Adding a runtime is a copy of `kokoro-82m/` plus targeted
+    edits. There are no asymmetric runtime directories in the
+    registry.
+
 ## Acceptance criteria
 
 For this ADR (Phase 2 implementation architecture):
@@ -306,6 +388,24 @@ For the broader feature (validated across Phase 2 sub-phases):
       is used (integration test).
 - [ ] Backend image continues to work in the absence of Docker
       (regression test).
+- [ ] `RuntimeDescriptor` accepts and validates `spec.build`
+      (entrypoint, build_context, dockerfile); the absence of
+      `spec.build` is a valid case (prebuilt image).
+- [ ] `RuntimeDescriptor` accepts and validates
+      `spec.lifecycle.idle_timeout` against the closed vocabulary
+      (`never` / `15m` / `30m` / `1h` / `6h`); the field has a
+      sensible default per edition.
+- [ ] `Settings.RUNTIME_SERVICE_ENABLED: bool = False` is present;
+      backend startup wires runtime subsystem iff the flag is true.
+- [ ] Backend startup is verified to **not** start any runtime
+      container; the manager's instance cache is empty at boot.
+- [ ] Idle-timeout reaper: a runtime that has not served a
+      request for `idle_timeout` is auto-stopped; the next request
+      re-activates it (warm or cold).
+- [ ] **Phase 3 DoD:** The backend container starts successfully
+      with `kokoro` removed from the backend Python environment;
+      voice generation succeeds through the Runtime Service; the
+      test exercises the full Audio path.
 
 ---
 
@@ -341,6 +441,21 @@ and their own OPEN_DECISIONS entry.
     concerns are routed through metadata.
 15. **The migration is additive** — the in-process path remains
     available for every model until Phase 7 explicitly removes it.
+16. **A Runtime Registry entry is self-contained** — descriptor,
+    Dockerfile, source, requirements, README, tests. A descriptor
+    alone is not a valid entry.
+17. **The Manager is image-agnostic** — it never sees the
+    `spec.build` block; build is a pre-flight concern of the
+    registry loader.
+18. **Activation is gated on `RUNTIME_SERVICE_ENABLED`** — the
+    runtime subsystem is opt-in at startup.
+19. **The backend boots with no runtimes active** — lazy
+    activation; no runtime container is started at boot.
+20. **Runtimes auto-stop after `idle_timeout` of inactivity** —
+    the manager owns the idle timer; the container is not torn
+    down on every request.
+21. **Every new runtime mirrors the Kokoro reference shape** —
+    no asymmetric runtime directories in the registry.
 
 ---
 

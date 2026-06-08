@@ -1,16 +1,17 @@
-"""TDD: RuntimeManager wired with DockerRuntimeDriver (2B.6).
+"""TDD: RuntimeManager wired with DockerRuntimeDriver (2B.6 + 2D.1-2D.3).
 
 Per ADR-0017 §3.4, when a driver is wired, the manager's resolve()
-returns a RuntimeResolution with the descriptor, a synthetic
-runtime instance, and a reachable endpoint. In 2B the manager
-does NOT call the driver to verify the instance state (that is
-the 2C+ bridge's job); the resolution is built from the
-descriptor's metadata alone.
+returns a RuntimeResolution built from the descriptor + the
+cached RuntimeInstance. In 2D the manager does NOT synthesize an
+instance; it requires the runtime to be installed AND started
+(via the lifecycle methods) before resolve() returns a non-None
+resolution. The bridge in 2A.10 falls through to the in-process
+path when resolve() returns None.
 
-Phase 2B guardrail: the manager does not gain Docker knowledge.
-The driver is injected via the constructor; the manager's
-resolve() reads the descriptor's service config and builds the
-endpoint URL without importing or referencing any substrate
+Phase 2B + 2D guardrail: the manager does not gain Docker
+knowledge. The driver is injected via the constructor; the
+manager's resolve() reads the descriptor's metadata and the
+cached instance without importing or referencing any substrate
 library. The manager is substrate-neutral.
 
 Phase 2A bridge constraint: the manager's resolve() returning a
@@ -22,18 +23,20 @@ KokoroAdapter migration) is when the runtime path activates; the
 before routing traffic.
 
 These tests assert:
-- Manager with a driver returns a non-None RuntimeResolution.
+- Manager with a driver returns a non-None RuntimeResolution
+  when the runtime is installed and started (cache is populated).
+- Manager with a driver returns None when the runtime is not
+  installed (cache is empty).
 - Manager without a driver returns None (preserves 2A behavior).
-- The resolution carries the descriptor, a synthetic instance, and
-  a reachable endpoint.
-- The endpoint is built from the descriptor's service port
-  (not from any substrate import).
-- Selection rules (default > priority > hint > first) work with a
-  wired driver.
+- The resolution carries the descriptor and the CACHED instance
+  (not a synthetic instance).
+- The endpoint is built from the cached instance's host/port.
+- Selection rules (default > priority > hint > first) work with
+  a wired driver.
 - The manager never imports Docker (verified by the lint).
-- The bridge in 2A.10 is unchanged: in 2B, the runtime-service
-  branch is still a literal pass; the runtime path is not
-  activated by this commit.
+- The bridge in 2A.10 is unchanged: the runtime-service branch
+  is still a literal pass; the runtime path is not activated by
+  this commit.
 """
 
 from __future__ import annotations
@@ -89,23 +92,118 @@ def _good_descriptor(
     })
 
 
-class _StubDriver:
-    """A minimal driver stub that the manager depends on through the
-    RuntimeDriver Protocol. The manager does not actually call the
-    driver in 2B's resolve() (the instance is synthetic); this
-    stub exists to satisfy the Protocol surface and to allow the
-    test to verify the manager does not call the driver."""
+class _RecordingDriver:
+    """A driver that records calls and returns Active instances.
 
-    async def install_runtime(self, runtime_id, descriptor): raise NotImplementedError
-    async def update_runtime(self, runtime_id, descriptor): raise NotImplementedError
-    async def remove_runtime(self, runtime_id): raise NotImplementedError
-    async def start_runtime(self, runtime_id): raise NotImplementedError
-    async def stop_runtime(self, runtime_id): raise NotImplementedError
-    async def restart_runtime(self, runtime_id): raise NotImplementedError
-    async def runtime_status(self, runtime_id): raise NotImplementedError
-    async def runtime_logs(self, runtime_id, since=None): raise NotImplementedError
-    async def runtime_health(self, runtime_id): raise NotImplementedError
-    async def runtime_metrics(self, runtime_id): raise NotImplementedError
+    In 2D the manager calls the driver for lifecycle operations
+    (install, start) and caches the returned RuntimeInstance.
+    The 2B+ tests use this driver to populate the cache and then
+    verify resolve() returns a resolution built from the cache.
+    """
+
+    def __init__(self) -> None:
+        self.instances: dict[str, RuntimeInstance] = {}
+
+    async def install_runtime(self, runtime_id, descriptor):
+        inst = RuntimeInstance(
+            runtime_id=runtime_id,
+            state=RuntimeState.INSTALLED,
+            host="localhost",
+            port=descriptor.spec.service.port,
+            image_identity=ImageIdentity(
+                repository=descriptor.spec.image.repository,
+                tag=descriptor.spec.image.tag,
+                digest=descriptor.spec.image.digest,
+            ),
+            started_at=None,
+            last_health_at=None,
+            health_state=HealthState.UNKNOWN,
+        )
+        self.instances[runtime_id] = inst
+        return inst
+
+    async def start_runtime(self, runtime_id):
+        cur = self.instances.get(runtime_id) or _make_active(runtime_id)
+        inst = RuntimeInstance(
+            runtime_id=cur.runtime_id,
+            state=RuntimeState.ACTIVE,
+            host=cur.host,
+            port=cur.port,
+            image_identity=cur.image_identity,
+            started_at=datetime(2026, 6, 7, 0, 0, 0),
+            last_health_at=datetime(2026, 6, 7, 0, 0, 0),
+            health_state=HealthState.READY,
+        )
+        self.instances[runtime_id] = inst
+        return inst
+
+    async def update_runtime(self, runtime_id, descriptor):
+        return self.instances.get(runtime_id) or _make_active(runtime_id)
+
+    async def remove_runtime(self, runtime_id):
+        self.instances.pop(runtime_id, None)
+
+    async def stop_runtime(self, runtime_id):
+        if runtime_id in self.instances:
+            cur = self.instances[runtime_id]
+            self.instances[runtime_id] = RuntimeInstance(
+                runtime_id=cur.runtime_id,
+                state=RuntimeState.STOPPED,
+                host=cur.host,
+                port=cur.port,
+                image_identity=cur.image_identity,
+                started_at=cur.started_at,
+                last_health_at=cur.last_health_at,
+                health_state=HealthState.UNKNOWN,
+            )
+
+    async def restart_runtime(self, runtime_id):
+        return await self.start_runtime(runtime_id)
+
+    async def runtime_status(self, runtime_id):
+        return self.instances.get(runtime_id) or _make_active(runtime_id)
+
+    async def runtime_logs(self, runtime_id, since=None):
+        async def _empty():
+            if False:
+                yield ""
+        return _empty()
+
+    async def runtime_health(self, runtime_id):
+        return HealthReport(
+            runtime_id=runtime_id,
+            liveness=Liveness.ALIVE,
+            readiness=Readiness.READY,
+            last_error=None,
+            checked_at=datetime(2026, 6, 7, 0, 0, 0),
+        )
+
+    async def runtime_metrics(self, runtime_id):
+        return Metrics()
+
+
+def _make_active(runtime_id: str) -> RuntimeInstance:
+    return RuntimeInstance(
+        runtime_id=runtime_id,
+        state=RuntimeState.ACTIVE,
+        host="localhost",
+        port=8000,
+        image_identity=ImageIdentity(
+            repository="peakvox/kokoro-runtime",
+            tag="1.4.2",
+            digest="sha256:" + "a" * 64,
+        ),
+        started_at=datetime(2026, 6, 7, 0, 0, 0),
+        last_health_at=datetime(2026, 6, 7, 0, 0, 0),
+        health_state=HealthState.READY,
+    )
+
+
+def _install_and_start(mgr: RuntimeManager, runtime_ids: List[str]) -> None:
+    """Helper: install + start each runtime_id, populating the cache."""
+    for rid in runtime_ids:
+        asyncio.run(mgr.install(rid))
+        asyncio.run(mgr.start(rid))
 
 
 # ---- Tests ---------------------------------------------------------------------
@@ -113,7 +211,9 @@ class _StubDriver:
 def test_manager_with_driver_resolves_model_to_runtime_resolution() -> None:
     desc = _good_descriptor()
     reg = RuntimeRegistry([desc])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
     assert isinstance(res, RuntimeResolution)
@@ -121,22 +221,26 @@ def test_manager_with_driver_resolves_model_to_runtime_resolution() -> None:
     assert res.descriptor.spec.model_binding.model_id == "kokoro-base"
 
 
-def test_manager_resolution_endpoint_reflects_descriptor_port() -> None:
+def test_manager_resolution_endpoint_reflects_cached_instance() -> None:
     desc = _good_descriptor(port=8123)
     reg = RuntimeRegistry([desc])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
-    # Endpoint URL is built from the descriptor's service port
-    # (and a sensible default host — "localhost" for CE; configurable
-    # in 2C+ for Cloud service-DNS).
+    # Endpoint URL is built from the cached instance's host + port
+    # (the cached instance is populated by the driver, not the
+    # manager; the manager does not synthesize the host).
     assert res.endpoint == "http://localhost:8123"
 
 
 def test_manager_resolution_instance_carries_image_identity() -> None:
     desc = _good_descriptor()
     reg = RuntimeRegistry([desc])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
     inst = res.instance
@@ -145,14 +249,14 @@ def test_manager_resolution_instance_carries_image_identity() -> None:
     assert inst.image_identity.digest == "sha256:" + "a" * 64
 
 
-def test_manager_resolution_instance_state_is_synthetic_active() -> None:
-    """In 2B the manager does not verify the instance state via the
-    driver (that is the 2C+ bridge's job). The instance returned
-    is synthetic with state=Active and health_state=Ready; the
-    2C+ bridge will call driver.runtime_health to verify."""
+def test_manager_resolution_instance_state_is_active() -> None:
+    """The resolved instance is the CACHED instance with state=Active
+    (populated by install + start)."""
     desc = _good_descriptor()
     reg = RuntimeRegistry([desc])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
     assert res.instance.state == RuntimeState.ACTIVE
@@ -169,7 +273,17 @@ def test_manager_without_driver_returns_none() -> None:
 
 
 def test_manager_with_driver_but_empty_registry_returns_none() -> None:
-    mgr = RuntimeManager(registry=RuntimeRegistry([]), driver=_StubDriver(), events=RuntimeEventBus())
+    mgr = RuntimeManager(registry=RuntimeRegistry([]), driver=_RecordingDriver(), events=RuntimeEventBus())
+    assert mgr.resolve("kokoro-base") is None
+
+
+def test_manager_with_driver_but_runtime_not_installed_returns_none() -> None:
+    """2D: even with a driver wired, resolve() returns None when
+    the runtime is not in the cache (i.e. not yet installed).
+    The bridge falls through to the in-process path."""
+    desc = _good_descriptor()
+    reg = RuntimeRegistry([desc])
+    mgr = RuntimeManager(registry=reg, driver=_RecordingDriver(), events=RuntimeEventBus())
     assert mgr.resolve("kokoro-base") is None
 
 
@@ -177,7 +291,9 @@ def test_manager_selection_picks_default_over_priority() -> None:
     d1 = _good_descriptor(runtime_id="kokoro-cpu", priority=200, is_default=False)
     d2 = _good_descriptor(runtime_id="kokoro-cuda", priority=100, is_default=True)
     reg = RuntimeRegistry([d1, d2])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu", "kokoro-cuda"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
     # Default wins regardless of priority.
@@ -188,7 +304,9 @@ def test_manager_selection_uses_priority_when_no_default() -> None:
     d1 = _good_descriptor(runtime_id="kokoro-cpu", priority=200, is_default=False)
     d2 = _good_descriptor(runtime_id="kokoro-cuda", priority=100, is_default=False)
     reg = RuntimeRegistry([d1, d2])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu", "kokoro-cuda"])
     res = mgr.resolve("kokoro-base")
     assert res is not None
     # Lower priority number wins.
@@ -206,7 +324,9 @@ def test_manager_selection_with_hint() -> None:
     d2_dict["metadata"]["labels"] = {"profile": "cuda"}
     d2 = RuntimeDescriptor.model_validate(d2_dict)
     reg = RuntimeRegistry([d1, d2])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    driver = _RecordingDriver()
+    mgr = RuntimeManager(registry=reg, driver=driver, events=RuntimeEventBus())
+    _install_and_start(mgr, ["kokoro-cpu", "kokoro-cuda"])
     # Hint "cuda" filters to the descriptor whose id or labels match.
     res = mgr.resolve("kokoro-base", hint="cuda")
     assert res is not None
@@ -264,7 +384,7 @@ def test_bridge_in_2a10_still_falls_through_with_manager_wired() -> None:
 
     desc = _good_descriptor()
     reg = RuntimeRegistry([desc])
-    mgr = RuntimeManager(registry=reg, driver=_StubDriver(), events=RuntimeEventBus())
+    mgr = RuntimeManager(registry=reg, driver=_RecordingDriver(), events=RuntimeEventBus())
     rt.attach_runtime_manager(mgr)
 
     # Generate; the adapter is the worker. The bridge is a

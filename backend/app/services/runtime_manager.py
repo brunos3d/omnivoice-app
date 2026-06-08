@@ -103,6 +103,27 @@ class RuntimeManager:
         self._registry = registry
         self._driver: Optional[RuntimeDriver] = driver
         self._events = events
+        # Phase 2D: the manager caches the operational state of
+        # every runtime it has installed. The cache is in-memory
+        # only; persistence is OPEN_DECISIONS Decision 12
+        # (future ADR; non-blocking). The cache is the manager's
+        # only ownership of operational state — it never
+        # references Voice / VoiceVariant / VoiceVariantArtifact
+        # (per the Runtime Activation Audit).
+        self._instance_cache: dict[str, RuntimeInstance] = {}
+
+    # --- Cache (2D.1-2D.3) -----------------------------------------------------
+
+    def get_cached_instance(self, runtime_id: str) -> Optional[RuntimeInstance]:
+        """Return the cached ``RuntimeInstance`` for ``runtime_id``,
+        or ``None`` if the runtime is not in the cache (i.e. not
+        yet installed)."""
+        return self._instance_cache.get(runtime_id)
+
+    def list_cached_instances(self) -> List[RuntimeInstance]:
+        """All cached ``RuntimeInstance`` objects (operational
+        state only; no domain objects)."""
+        return list(self._instance_cache.values())
 
     # --- Resolution ----------------------------------------------------------
 
@@ -116,22 +137,20 @@ class RuntimeManager:
           4. Hint filter (e.g. 'cuda', 'cpu', 'local', 'cloud').
           5. First match.
 
-        Phase 2B: when a driver is wired, the method returns a
-        ``RuntimeResolution`` with the chosen descriptor, a
-        SYNTHETIC ``RuntimeInstance`` (state=Active, health_state=
-        Ready), and a reachable endpoint URL. The instance is
-        synthetic because the manager does NOT call the driver
-        to verify the instance state in 2B — that is the 2C+
-        bridge's job (it will call ``driver.runtime_health`` to
-        verify the runtime is ready before routing traffic).
+        Phase 2D: the manager reads from its instance cache. The
+        resolution is returned ONLY when the chosen descriptor
+        has a cached ``RuntimeInstance`` whose state is
+        ``ACTIVE``. When the runtime is not in the cache (not
+        yet installed) or its state is not ACTIVE, the method
+        returns ``None`` and the bridge (2A.10) falls through to
+        the in-process path.
 
         Phase 2A: when no driver is wired, the method returns
-        ``None`` and the bridge (2A.10) falls through to the
-        existing in-process path. This behavior is preserved.
+        ``None`` and the bridge falls through to the in-process
+        path. This behavior is preserved.
         """
         if self._driver is None:
-            # 2A behavior: no driver wired. The bridge uses None to
-            # fall through to the existing in-process path.
+            # 2A behavior: no driver wired.
             return None
 
         descriptors = self._registry.list_for_model(model_id)
@@ -152,35 +171,19 @@ class RuntimeManager:
                 descriptors = hinted
         chosen = descriptors[0]
 
-        # Build the synthetic instance and endpoint URL. The host is
-        # the conventional CE default ("localhost"); Cloud
-        # service-DNS resolution is a 2C+ concern. The port is the
-        # runtime descriptor's service port. The 2C+ bridge
-        # verifies the instance is actually ready via
-        # ``driver.runtime_health`` before routing traffic; the
-        # synthetic state here is a placeholder for that bridge
-        # path, not a claim that the container is currently
-        # running.
-        host = "localhost"
-        port = chosen.spec.service.port
-        endpoint = f"http://{host}:{port}"
-        instance = RuntimeInstance(
-            runtime_id=chosen.metadata.id,
-            state=RuntimeState.ACTIVE,
-            host=host,
-            port=port,
-            image_identity=ImageIdentity(
-                repository=chosen.spec.image.repository,
-                tag=chosen.spec.image.tag,
-                digest=chosen.spec.image.digest,
-            ),
-            started_at=None,
-            last_health_at=None,
-            health_state=HealthState.READY,
-        )
+        # The resolution is returned ONLY when the cache holds an
+        # ACTIVE instance for the chosen descriptor. The cache
+        # is populated by ``install()`` + ``start()`` (or by an
+        # external operator via the manager's lifecycle methods).
+        # When the cache is empty or the instance is not ACTIVE,
+        # the bridge falls through to the in-process path.
+        cached = self._instance_cache.get(chosen.metadata.id)
+        if cached is None or cached.state != RuntimeState.ACTIVE:
+            return None
+        endpoint = f"http://{cached.host}:{cached.port}"
         return RuntimeResolution(
             descriptor=chosen,
-            instance=instance,
+            instance=cached,
             endpoint=endpoint,
         )
 
@@ -206,6 +209,8 @@ class RuntimeManager:
         except RuntimeDriverError as exc:
             self._publish_event("install_failed", runtime_id, error=str(exc))
             raise
+        # 2D.1: cache the installed instance.
+        self._instance_cache[runtime_id] = inst
         self._publish_event("install_completed", runtime_id)
         return inst
 
@@ -215,26 +220,55 @@ class RuntimeManager:
         if descriptor is None:
             from app.services.runtime_errors import RuntimeNotFound
             raise RuntimeNotFound(runtime_id, "not in registry")
-        return await driver.update_runtime(runtime_id, descriptor)
+        inst = await driver.update_runtime(runtime_id, descriptor)
+        # 2D.3: refresh the cache.
+        self._instance_cache[runtime_id] = inst
+        return inst
 
     async def remove(self, runtime_id: str) -> None:
         driver = self._require_driver()
         await driver.remove_runtime(runtime_id)
+        # 2D.3: clear the cache.
+        self._instance_cache.pop(runtime_id, None)
         self._publish_event("remove_completed", runtime_id)
 
     async def start(self, runtime_id: str) -> RuntimeInstance:
         driver = self._require_driver()
         self._publish_event("start_requested", runtime_id)
         inst = await driver.start_runtime(runtime_id)
+        # 2D.2: cache the started instance.
+        self._instance_cache[runtime_id] = inst
         self._publish_event("start_completed", runtime_id)
         return inst
 
     async def stop(self, runtime_id: str) -> None:
         driver = self._require_driver()
         await driver.stop_runtime(runtime_id)
+        # 2D.2: refresh the cache to the stopped state.
+        # The driver may return a None in 2A; the cache holds
+        # the last-known instance unless remove() is called.
+        if runtime_id in self._instance_cache:
+            cur = self._instance_cache[runtime_id]
+            self._instance_cache[runtime_id] = RuntimeInstance(
+                runtime_id=cur.runtime_id,
+                state=RuntimeState.STOPPED,
+                host=cur.host,
+                port=cur.port,
+                image_identity=cur.image_identity,
+                started_at=cur.started_at,
+                last_health_at=cur.last_health_at,
+                health_state=HealthState.UNKNOWN,
+            )
         self._publish_event("stop_completed", runtime_id)
 
     async def status(self, runtime_id: str) -> RuntimeInstance:
+        # 2D.2: status() reads from the cache when present. The
+        # cache is the manager's view of the world; the driver is
+        # only consulted via runtime_health when the bridge needs
+        # to verify readiness. The bridge in 2A.10 is the only
+        # consumer of the live health probe.
+        if runtime_id in self._instance_cache:
+            return self._instance_cache[runtime_id]
         driver = self._require_driver()
         return await driver.runtime_status(runtime_id)
 

@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # model disabled when no Fish backend is available.
     FISH_AUDIO_SERVER_URL: str = "http://localhost:8080"
 
+    # Kokoro runtime service URL. When empty (the CE default), the
+    # KokoroAdapter uses the in-process kokoro package (lazy
+    # import). When set to a non-empty URL, the adapter routes all
+    # generation / variant-build requests to that URL via
+    # HTTPTransport. Bearer token defaults to empty in CE; Cloud
+    # authentication is set by the Cloud ADR.
+    KOKORO_RUNTIME_URL: str = ""
+
     @property
     def features(self) -> Features:
         return Features.for_edition(self.EDITION)

@@ -9,17 +9,18 @@
 
 ## In flight
 
-1. **TASK 12 — Runtime Registry expansion** (OmniVoice Base
-   + F5-TTS Base). TDD-shaped tasks in
-   [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/TASKS.md`](../SPECS/FEATURES/runtime-canonical-models-page/TASKS.md) §12.
-   The 9 sub-tasks: descriptor entries for `omnivoice-base`
-   and `f5-tts-base`; descriptor validation; Models-page
-   rendering of all 3 runtimes; container lifecycle
-   validation; E2E generation validation; terminal-first
-   validation; future-runtime reference validation (XTTS,
-   OpenVoice, Fish). Driven by the architectural goal that
-   the Runtime Registry becomes the canonical location for
-   every runtime implementation.
+1. **Phase 3 — Kokoro full migration + Runtime Service
+   Container E2E (the remaining sub-tasks).** The
+   runtime-canonical Models page and the Runtime
+   Registry expansion (TASK 12) are VALIDATED. The
+   remaining Phase 3 work is the E2E audio generation
+   pipeline through the backend: G6 (architecture) +
+   G9 (reaper) + G10 (no-Kokoro backend) reports are
+   written; G7 (Performance) + G8 (Error recovery)
+   reports are deferred to a future phase. The
+   pre-existing `KokoroAdapter` voice-id → preset-name
+   translation issue is the next P0 unblocker for the
+   full backend → runtime path.
 
 ## Not in flight (recently completed)
 

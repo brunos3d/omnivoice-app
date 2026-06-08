@@ -6,22 +6,23 @@
 **As of:** 2026-06-08
 
 - **Current focus:** **Runtime-Canonical Models Page** is
-  IMPLEMENTED (2026-06-08). The Models page now renders
-  as a strict 3-tier composed view with a single
-  canonical lifecycle control surface owned by the
-  Runtime Section. The legacy `Lifecycle` block (model
-  Activate/Deactivate) is removed from the page; the
-  `useModelLifecycleAction` import is gone; the page
-  depends solely on `useModelsWithRuntimes()`. Extracted
-  components: `RuntimeSection`, `ModelSection`,
-  `OperationsRow`, `NotMigratedEmptyState`, `ModelRow`.
-  Audit: [`SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md`](SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md).
+  VALIDATED (2026-06-08). **TASK 12 (Runtime Registry
+  Expansion)** is VALIDATED. The Runtime Registry now
+  hosts three independent runtime implementations
+  (`kokoro-82m`, `omnivoice-base`, `f5-tts-base`). The
+  Models page renders all three with zero hardcoded
+  assumptions. The Kokoro runtime container produces
+  real audio (4.45s WAV, 24kHz mono PCM) end-to-end
+  through the 5-endpoint Runtime Service Contract.
+  Workstream A (Models page) + Workstream B (Runtime
+  Registry expansion) are both complete and validated.
+  Audit:
+  [`SPECS/FEATURES/runtime-canonical-models-page/audits/`](SPECS/FEATURES/runtime-canonical-models-page/audits/).
   Phase 2 (Runtime Services) remains COMPLETE; the
-  Models-page / Runtime-Registry convergence workstream
-  is the first half of the Phase 3 full-stack
-  convergence. **Next workstream:** TASK 12 — Runtime
-  Registry expansion (`omnivoice-base` + `f5-tts-base`
-  descriptor entries), then E2E generation validation.
+  Phase 3 full-stack convergence is now mid-flight
+  with the runtime-canonical Models page + the
+  multi-runtime registry expansion as the first two
+  deliverables.
 - **Current branch:** `feat/peakvox-phase-1`
 - **Current ADRs in play:** ADR-0008/0009/0010/0011/0012
   (variant lifecycle, artifacts, source assets, creation

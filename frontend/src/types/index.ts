@@ -587,10 +587,96 @@ export interface RuntimesResponse {
 
 export interface ModelWithRuntimesCard {
   model: Record<string, unknown>;  // ModelDescriptor (catalog entity)
-  runtimes: RuntimeCard[];
+  runtimes: ComposedRuntimeEntry[];
   default_runtime_id: string | null;
 }
 
 export interface ModelsWithRuntimesResponse {
   models: ModelWithRuntimesCard[];
+}
+
+// ---------------------------------------------------------------------------
+// Composed-view runtime entry
+//
+// The /api/models/with-runtimes endpoint returns the raw on-disk
+// descriptor (not the lifted RuntimeCard shape used by
+// /api/runtimes). This entry pairs that raw descriptor with the
+// live state. The Models page renders entirely from this shape.
+// ---------------------------------------------------------------------------
+
+export interface ComposedRuntimeImage {
+  repository: string;
+  tag: string;
+  digest: string | null;
+}
+
+export interface ComposedRuntimeBuild {
+  entrypoint: string;
+  build_context: string;
+  dockerfile: string;
+}
+
+export interface ComposedRuntimeService {
+  protocol: "http" | "grpc";
+  port: number;
+  health_path: string;
+  readiness_path: string;
+  generate_path: string;
+  build_path: string;
+  metadata_path: string;
+}
+
+export interface ComposedRuntimeRequirements {
+  gpu: "required" | "optional" | "none";
+  min_vram_gb: number | null;
+  cpu_cores: number | null;
+  memory_gb: number | null;
+  edition: string[];
+}
+
+export interface ComposedRuntimeLifecycle {
+  install_policy: string;
+  health_interval_seconds: number;
+  health_timeout_seconds: number;
+  start_timeout_seconds: number;
+  restart_policy: string;
+  idle_timeout: string;
+}
+
+export interface ComposedRuntimeSpec {
+  runtime_type: string;
+  image: ComposedRuntimeImage;
+  build: ComposedRuntimeBuild | null;
+  service: ComposedRuntimeService;
+  capabilities: string[];
+  requirements: ComposedRuntimeRequirements;
+  model_binding: {
+    model_id: string;
+    is_default: boolean;
+    priority: number;
+  };
+  lifecycle: ComposedRuntimeLifecycle;
+}
+
+export interface ComposedRuntimeMetadata {
+  id: string;
+  name: string;
+  description: string;
+  provider: string;
+  version: string;
+  edition: string[];
+  labels: Record<string, string>;
+}
+
+export interface ComposedRuntimeDescriptor {
+  api_version: string;
+  kind: string;
+  metadata: ComposedRuntimeMetadata;
+  spec: ComposedRuntimeSpec;
+}
+
+export interface ComposedRuntimeEntry {
+  runtime_id: string;
+  descriptor: ComposedRuntimeDescriptor | null;
+  state: RuntimeStatePayload;
 }

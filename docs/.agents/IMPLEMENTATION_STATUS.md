@@ -207,6 +207,7 @@ migration) is unblocked.
 | `RuntimeOperator` CLI skeleton | IMPLEMENTED | `scripts/runtime_manager.py`; `tests/test_runtime_manager_cli_skeleton.py` (4 tests) — `from_settings()` loads registry; four CE operations work end-to-end; list_runtimes; resolve; no Docker import |
 | Kokoro G6 provider-validated report | IMPLEMENTED | `docs/.agents/VALIDATION/PROVIDER_VALIDATIONS/kokoro-runtime-validation-report.md` — full G6 validation; Runtime Activation Audit summary; Phase 2 → Phase 3 gate |
 | Runtime Activation Audit | PASSED | `docs/.agents/VALIDATION/AUDITS/runtime-activation-audit.md` — all 7 checks PASS; canonical chain (Voice → VoiceVariant → Active Artifact → Adapter) intact; runtime infrastructure is strictly downstream |
+| Runtime-Canonical Models Page | IMPLEMENTED | `docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/` — single canonical lifecycle control surface owned by the Runtime Section; legacy Lifecycle block removed; `useModelLifecycleAction` no longer imported by the page; composed-view data source only. Audit: [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md`](SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md) |
 
 **Phase 2D architectural invariants (verified per the 2D gate checklist + Runtime Activation Audit):**
 - The `runtime-registry/` directory is published with the Kokoro descriptor. The descriptor validates against the bound model's `ModelCapabilities` (no implicit capabilities).

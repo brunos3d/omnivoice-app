@@ -3,34 +3,26 @@
 > Operational memory. Changes frequently — update at the start and end of every working
 > session. Keep it short and current; move history to the execution ledger.
 
-**As of:** 2026-06-07
+**As of:** 2026-06-08
 
-- **Current focus:** Phase 3 implementation. **Phase 2 is
-  COMPLETE (2026-06-07).** ADR-0016 + ADR-0017 are
-  Accepted+Implemented (2A+2B+2C+2D). The Runtime
-  Activation Audit (all 7 checks PASS) confirms the
-  canonical chain (Voice → VoiceVariant → Active Artifact
-  → Adapter) is intact and runtime infrastructure is
-  strictly downstream. 2A: 9 modules + 9 test files
-  (76 new tests). 2B: `DockerRuntimeDriver` + lint script
-  + manager wiring (40 new tests). 2C: `HTTPTransport` +
-  `KokoroAdapter` `KOKORO_RUNTIME_URL` integration + env
-  plumbing + E2E scaffold (25 new tests, 1 skipped).
-  2D: `runtime-registry/` with Kokoro descriptor +
-  `RuntimeManager` instance cache + CE operations + 2A
-  bridge activation + CLI skeleton + Kokoro G6
-  provider-validated report (32 new tests). **Phase 2
-  total: 170 runtime tests + 1 skipped (E2E gated).**
-  Full backend test suite: 495 passed, 1 skipped. 0
-  regressions. The next workstream is **Phase 3 (Kokoro
-  full migration)**: make the runtime-service path the
-  DEFAULT for Kokoro in CE.
+- **Current focus:** **Runtime-Canonical Models Page** is
+  IMPLEMENTED (2026-06-08). The Models page now renders
+  as a strict 3-tier composed view with a single
+  canonical lifecycle control surface owned by the
+  Runtime Section. The legacy `Lifecycle` block (model
+  Activate/Deactivate) is removed from the page; the
+  `useModelLifecycleAction` import is gone; the page
+  depends solely on `useModelsWithRuntimes()`. Extracted
+  components: `RuntimeSection`, `ModelSection`,
+  `OperationsRow`, `NotMigratedEmptyState`, `ModelRow`.
+  Audit: [`SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md`](SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md).
+  Phase 2 (Runtime Services) remains COMPLETE; the
+  Models-page / Runtime-Registry convergence workstream
+  is the first half of the Phase 3 full-stack
+  convergence. **Next workstream:** TASK 12 — Runtime
+  Registry expansion (`omnivoice-base` + `f5-tts-base`
+  descriptor entries), then E2E generation validation.
 - **Current branch:** `feat/peakvox-phase-1`
-- **Working tree:** clean — this commit lands the Phase 2D
-  state file updates (IMPLEMENTATION_STATUS, NEXT_TASK,
-  ACTIVE_WORK, CURRENT_CONTEXT, PROJECT_STATE,
-  ROADMAP/CURRENT_PHASE) promoting Phase 2 complete and
-  Phase 3 next.
 - **Current ADRs in play:** ADR-0008/0009/0010/0011/0012
   (variant lifecycle, artifacts, source assets, creation
   sources, catalog resources) — the surface touched by the

@@ -1,0 +1,181 @@
+import { Container, HardDrive, Network, Server } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { OperationsRow } from "@/components/models/OperationsRow"
+import { NotMigratedEmptyState } from "@/components/models/NotMigratedEmptyState"
+import type {
+  ComposedRuntimeDescriptor,
+  ModelWithRuntimesCard,
+  RuntimePhase,
+  RuntimeStatePayload,
+} from "@/types"
+import type { RuntimeLifecycleAction } from "@/hooks/use-runtimes"
+
+const RUNTIME_PHASE_LABEL: Record<RuntimePhase, string> = {
+  NotInstalled: "Not Installed",
+  Pulling: "Pulling image...",
+  Installed: "Installed (image present, container stopped)",
+  Starting: "Starting container...",
+  Active: "Active (container running, /ready 200)",
+  Stopping: "Stopping...",
+  Stopped: "Stopped",
+  Failed: "Failed",
+  Updating: "Updating...",
+}
+
+const RUNTIME_PHASE_BADGE: Record<RuntimePhase, string> = {
+  NotInstalled: "bg-muted text-muted-foreground",
+  Pulling: "bg-warning/15 text-warning",
+  Installed: "bg-muted text-muted-foreground",
+  Starting: "bg-warning/15 text-warning",
+  Active: "bg-success/15 text-success",
+  Stopping: "bg-muted text-muted-foreground",
+  Stopped: "bg-muted text-muted-foreground",
+  Failed: "bg-error/15 text-error",
+  Updating: "bg-warning/15 text-warning",
+}
+
+function InfoLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("max-w-[260px] text-right break-all text-foreground", mono && "font-mono text-xs")}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function CapabilityChip({ name }: { name: string }) {
+  return (
+    <Badge variant="secondary" className="rounded-md bg-primary/10 text-primary hover:bg-primary/15">
+      {name}
+    </Badge>
+  )
+}
+
+function RuntimeDescriptorView({
+  descriptor,
+  state,
+}: {
+  descriptor: ComposedRuntimeDescriptor
+  state: RuntimeStatePayload
+}) {
+  const { spec, metadata } = descriptor
+
+  return (
+    <div className="rounded-md border border-border bg-surface-2 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-mono">
+            {spec.image.repository}:{spec.image.tag}
+          </p>
+          {spec.image.digest && (
+            <p className="text-[10px] text-muted-foreground font-mono break-all">@{spec.image.digest}</p>
+          )}
+          {metadata.name && metadata.name !== `${spec.image.repository}:${spec.image.tag}` && (
+            <p className="text-xs text-muted-foreground mt-0.5">{metadata.name}</p>
+          )}
+        </div>
+        <span className={cn("rounded px-2 py-1 text-[10px] font-medium", RUNTIME_PHASE_BADGE[state.phase])}>
+          {state.phase}
+        </span>
+      </div>
+
+      <p className="text-xs text-muted-foreground">{RUNTIME_PHASE_LABEL[state.phase]}</p>
+
+      {state.endpoint && <InfoLine label="Endpoint" value={state.endpoint} mono />}
+
+      {state.phase === "Active" && state.started_at && (
+        <InfoLine label="Started" value={new Date(state.started_at).toLocaleString()} />
+      )}
+
+      {state.last_health_at && (
+        <InfoLine label="Last health" value={new Date(state.last_health_at).toLocaleString()} />
+      )}
+
+      {state.health_state && <InfoLine label="Health" value={state.health_state} />}
+
+      <div className="border-t border-border pt-2 space-y-1">
+        <p className="text-caption uppercase tracking-wide flex items-center gap-1.5">
+          <Network className="h-3 w-3" /> Service
+        </p>
+        <InfoLine label="Protocol" value={spec.service.protocol} />
+        <InfoLine label="Port" value={String(spec.service.port)} />
+        <InfoLine label="Health" value={spec.service.health_path} mono />
+        <InfoLine label="Ready" value={spec.service.readiness_path} mono />
+        <InfoLine label="Generate" value={spec.service.generate_path} mono />
+        <InfoLine label="Build" value={spec.service.build_path} mono />
+        <InfoLine label="Metadata" value={spec.service.metadata_path} mono />
+      </div>
+
+      <div className="border-t border-border pt-2 space-y-1">
+        <p className="text-caption uppercase tracking-wide flex items-center gap-1.5">
+          <HardDrive className="h-3 w-3" /> Requirements
+        </p>
+        <InfoLine label="GPU" value={spec.requirements.gpu} />
+        <InfoLine
+          label="Min VRAM"
+          value={spec.requirements.min_vram_gb == null ? "n/a" : `${spec.requirements.min_vram_gb} GB`}
+        />
+        <InfoLine
+          label="CPU cores"
+          value={spec.requirements.cpu_cores == null ? "n/a" : String(spec.requirements.cpu_cores)}
+        />
+        <InfoLine
+          label="Memory"
+          value={spec.requirements.memory_gb == null ? "n/a" : `${spec.requirements.memory_gb} GB`}
+        />
+        <InfoLine label="Edition" value={spec.requirements.edition.join(", ")} />
+      </div>
+
+      <div className="border-t border-border pt-2 space-y-1">
+        <p className="text-caption uppercase tracking-wide flex items-center gap-1.5">
+          <Container className="h-3 w-3" /> Capabilities
+        </p>
+        {spec.capabilities.length === 0 ? (
+          <p className="text-xs text-muted-foreground">None declared</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {spec.capabilities.map((c) => (
+              <CapabilityChip key={c} name={c} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function RuntimeSection({
+  card,
+  onAction,
+  actionPending,
+}: {
+  card: ModelWithRuntimesCard | null | undefined
+  onAction: (runtimeId: string, action: RuntimeLifecycleAction) => void
+  actionPending: boolean
+}) {
+  if (!card) return null
+  const defaultRuntime = card.runtimes.find((r) => r.runtime_id === card.default_runtime_id) ?? card.runtimes[0]
+
+  return (
+    <div className="space-y-2">
+      <p className="text-caption uppercase tracking-wide flex items-center gap-1.5">
+        <Server className="h-3 w-3" /> Runtime
+      </p>
+      {defaultRuntime && defaultRuntime.descriptor ? (
+        <div className="space-y-3">
+          <RuntimeDescriptorView descriptor={defaultRuntime.descriptor} state={defaultRuntime.state} />
+          <OperationsRow
+            phase={defaultRuntime.state.phase}
+            pending={actionPending}
+            onAction={(action) => onAction(defaultRuntime.runtime_id, action)}
+          />
+        </div>
+      ) : (
+        <NotMigratedEmptyState modelId={card.model.id as string} />
+      )}
+    </div>
+  )
+}

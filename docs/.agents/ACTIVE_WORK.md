@@ -9,14 +9,17 @@
 
 ## In flight
 
-1. **Runtime-Service migration — Phase 3 (Kokoro full
-   migration).** **Ready to start.** TDD-shaped tasks
-   in
-   [`docs/.agents/SPECS/FEATURES/runtime-services-implementation/TASKS.md`](../SPECS/FEATURES/runtime-services-implementation/TASKS.md) §3.
-   The 4 tasks are: E2E test wired into docker-compose CI;
-   G7 (Performance) validation report; G8 (Error recovery)
-   validation report; state file updates. Phase 3 makes
-   the runtime-service path the DEFAULT for Kokoro in CE.
+1. **TASK 12 — Runtime Registry expansion** (OmniVoice Base
+   + F5-TTS Base). TDD-shaped tasks in
+   [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/TASKS.md`](../SPECS/FEATURES/runtime-canonical-models-page/TASKS.md) §12.
+   The 9 sub-tasks: descriptor entries for `omnivoice-base`
+   and `f5-tts-base`; descriptor validation; Models-page
+   rendering of all 3 runtimes; container lifecycle
+   validation; E2E generation validation; terminal-first
+   validation; future-runtime reference validation (XTTS,
+   OpenVoice, Fish). Driven by the architectural goal that
+   the Runtime Registry becomes the canonical location for
+   every runtime implementation.
 
 ## Not in flight (recently completed)
 
@@ -49,6 +52,21 @@
   the canonical chain (Voice → VoiceVariant → Active
   Artifact → Adapter) is intact and runtime infrastructure
   is strictly downstream.
+- **Runtime-Canonical Models Page (Models Page / Runtime
+  Registry convergence — first half of Phase 3
+  full-stack convergence).** ✅ **IMPLEMENTED 2026-06-08.**
+  Spec + design + tasks + validation + audit at
+  [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/`](../SPECS/FEATURES/runtime-canonical-models-page/).
+  Single canonical lifecycle control surface owned by the
+  Runtime Section; legacy Lifecycle block removed; the
+  page depends solely on `useModelsWithRuntimes()`. 5
+  components extracted (RuntimeSection, ModelSection,
+  OperationsRow, NotMigratedEmptyState, ModelRow) — all
+  reusable by future pages. `tsc --noEmit` + `eslint`
+  clean. Chrome DevTools visual validation: 0 console
+  errors, 3 screenshots captured. Backend coverage
+  confirmed by terminal check. Behavior change (Activate /
+  Deactivate removed) acknowledged in VALIDATION.md.
 - **Validation reports and state cleanup.** Kokoro provider
   validation complete (G5 in-process + G6 runtime-service
   architecturally; E2E gated).

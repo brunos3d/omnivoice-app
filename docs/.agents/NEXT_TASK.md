@@ -38,10 +38,42 @@
 > `RuntimeManager`. The R5 DoD is proven at the import-graph
 > level: `kokoro` is no longer a hard backend dependency.
 
-## Task: Phase 3 — Kokoro full migration + Runtime Service Container
+## Task: Phase 3 — Runtime-Canonical Models Page + Runtime Registry Expansion
 
 - **Priority:** P0. Phase 2 is complete; Phase 3 is the
   next sub-phase of the Runtime-Service migration.
+
+> ## Phase 3 — IN PROGRESS (Runtime-Canonical Models Page + Runtime Registry expansion)
+>
+> **Sub-phases 2A, 2B, 2C, AND 2D of the Runtime-Service
+> migration are COMPLETE (2026-06-07).** ADR-0016 + ADR-0017
+> are Accepted+Implemented+Refined (2A+2B+2C+2D + 8 post-audit
+> refinements R1–R8). **Phase 2 is COMPLETE.**
+>
+> **Phase 3 is in flight.** Two workstreams in sequence:
+>
+>   **Workstream A — Models Page / Runtime Registry
+>   convergence.** ✅ **IMPLEMENTED 2026-06-08.** The Models
+>   page is now a strict 3-tier composed view with a
+>   single canonical lifecycle control surface owned by the
+>   Runtime Section. The legacy `Lifecycle` block (model
+>   Activate/Deactivate) is removed. The page depends
+>   solely on `useModelsWithRuntimes()`. Extracted
+>   components: `RuntimeSection`, `ModelSection`,
+>   `OperationsRow`, `NotMigratedEmptyState`, `ModelRow`.
+>   See
+>   [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md`](SPECS/FEATURES/runtime-canonical-models-page/audits/models-page-canonical-control-surface.md).
+>
+>   **Workstream B — TASK 12: Runtime Registry
+>   expansion.** Next P0. Goal: prove the Runtime Registry
+>   can host multiple independent runtime implementations
+>   under the same architecture. First two additional
+>   entries: `omnivoice-base`, `f5-tts-base`. End-to-end
+>   validation: descriptor discovery, Models-page rendering
+>   of all 3 runtimes, container lifecycle (Install /
+>   Start / Stop / Update / Remove) for each runtime, real
+>   audio E2E generation. See
+>   [`docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/TASKS.md`](SPECS/FEATURES/runtime-canonical-models-page/TASKS.md) §12.
 - **Status:** **P1–P5 + P8 done; P6, P7, P9 in progress.**
   - P1 ✅ peakvox/kokoro-runtime: self-contained
   - P2 ✅ RuntimeRegistry + RuntimeManager wired at startup

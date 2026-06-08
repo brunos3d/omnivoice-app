@@ -215,3 +215,199 @@ The validation strategy in this task list is therefore
 the project's frontend validation policy in `frontend/AGENTS.md`
 and the project AGENTS.md. Adding a test framework is a
 separate, deferred decision.
+
+---
+
+# §12 — Runtime Registry Expansion (TASK 12)
+
+> **Goal:** prove the Runtime Registry can host multiple
+> independent runtime implementations under the same
+> architecture. The Kokoro-82m reference shape (R8) must be
+> reproducible for OmniVoice Base and F5-TTS Base with zero
+> architectural changes.
+
+## T12.1 — `runtime-registry/omnivoice-base/` entry
+
+Create the second runtime entry, mirroring Kokoro:
+
+```
+runtime-registry/
+└── omnivoice-base/
+    ├── descriptor.json   — runtime_type=docker, model_id=omnivoice-base
+    ├── Dockerfile        — omnivoice runtime image
+    ├── requirements.txt
+    ├── server.py         — implements /health, /ready,
+    │                        /v1/generate, /v1/variants/build,
+    │                        /v1/metadata
+    ├── README.md
+    └── tests/
+```
+
+Descriptor requirements (per Kokoro schema):
+- `metadata.id = "omnivoice-base"`
+- `metadata.model_family = "omnivoice-1b-2506"` (or upstream
+  card's id)
+- `spec.image.repository = "peakvox/omnivoice-runtime"`
+- `spec.image.tag = "0.1.0"`
+- `spec.service.port = 8000`
+- `spec.service.{health,readiness,generate,build,metadata}_path`
+  match the Runtime Service Contract
+- `spec.capabilities` — declare only what the runtime
+  actually supports (`tts`, `voice_cloning`,
+  `voice_design`, `emotion_tags`, `multilingual`,
+  `streaming` per OmniVoice's actual capability set)
+- `spec.requirements` — `gpu: optional` (OmniVoice CPU works
+  in float32), `min_vram_gb: 8` for GPU, `memory_gb: 16`,
+  `cpu_cores: 4`
+- `spec.model_binding.model_id = "omnivoice-base"`
+- `spec.lifecycle.install_policy = "pull-on-install"`,
+  `health_interval_seconds: 10`, `start_timeout_seconds: 120`
+
+## T12.2 — `runtime-registry/f5-tts-base/` entry
+
+```
+runtime-registry/
+└── f5-tts-base/
+    ├── descriptor.json
+    ├── Dockerfile
+    ├── requirements.txt
+    ├── server.py
+    ├── README.md
+    └── tests/
+```
+
+Descriptor requirements:
+- `metadata.id = "f5-tts-base"`
+- `spec.image.repository = "peakvox/f5-tts-runtime"`
+- `spec.capabilities` — `tts`, `voice_cloning`,
+  `reference_audio`, `streaming` (per F5-TTS's actual
+  capability set; do not invent unsupported capabilities)
+- `spec.model_binding.model_id = "f5-tts-base"`
+- `spec.requirements` — `gpu: required`,
+  `min_vram_gb: 12`, `memory_gb: 16`, `cpu_cores: 4`
+
+## T12.3 — Descriptor validation
+
+Confirm `RuntimeRegistryLoader` discovers all three
+descriptors and `GET /api/runtimes` returns 3 entries.
+
+Validation:
+- `ls runtime-registry/` → 3 entries
+- `GET /api/runtimes` → 3 cards
+- New test: `tests/test_runtime_registry_three_descriptors.py`
+  that loads all three and asserts every required field is
+  present
+
+## T12.4 — Models Page validation
+
+Verify the Models page renders all three runtimes from the
+registry with no hardcoded assumptions.
+
+Validation:
+- Open `/models` in Chrome DevTools
+- Click each of: Kokoro 82M, OmniVoice Base, F5-TTS Base
+- For each, the Runtime Section must render the descriptor
+  + state + operations
+- Take 3 screenshots
+- Assert: no hardcoded `if (id === "kokoro-82m")` branches
+  in the page
+
+## T12.5 — Container lifecycle validation
+
+For each runtime (Kokoro, OmniVoice, F5-TTS):
+- POST `/api/runtimes/{id}/install` → 200, phase transitions
+  to `Installed`
+- POST `/api/runtimes/{id}/start` → 200, phase transitions
+  to `Active`
+- POST `/api/runtimes/{id}/stop` → 200, phase transitions
+  to `Stopped`
+- POST `/api/runtimes/{id}/update` → 200, phase transitions
+  to `Active` (re-pulls image)
+- POST `/api/runtimes/{id}/remove` → 200, phase transitions
+  to `NotInstalled`
+
+Validation surface:
+- Backend `RuntimeManager` operations log
+- Docker `docker ps -a` for the runtime container
+- `docker logs <runtime-container>` for health/readiness
+  transitions
+- Frontend `useRuntimeLifecycleAction` calls succeed
+  (button clicks do not error)
+
+## T12.6 — Generation validation (real audio E2E)
+
+For each functional runtime:
+1. `docker compose ps` — all services up
+2. Open `/` (Text to Speech) in browser
+3. Select the model from the ModelSelector
+4. Select a voice
+5. Enter text
+6. Click Generate
+7. Verify the audio player receives the blob
+8. Verify the output file exists in `backend/data/output/` (or
+   MinIO)
+9. Verify no errors in backend logs or runtime logs
+
+Targets: Kokoro (functional), OmniVoice (if runtime is
+functional — likely requires GPU), F5-TTS (if functional —
+requires GPU).
+
+If a runtime's image is not buildable in this environment
+(no GPU, no time), document the gap honestly in the audit
+and skip that runtime's audio test (do not fake it).
+
+## T12.7 — Autonomous validation
+
+Operate without approval gates between steps. Use whatever
+combination of terminal + Chrome DevTools + backend tests
+serves the validation.
+
+## T12.8 — Terminal-first validation
+
+Before any screenshot:
+- `docker compose ps`
+- `docker ps -a`
+- `docker logs <container>` (each)
+- backend logs (the running FastAPI container)
+- runtime logs (each runtime container)
+- Next.js dev logs
+- API responses (`curl -s | jq`)
+- Runtime endpoint responses (`curl -s http://<runtime>/health`)
+
+Chrome DevTools is for visual + network + workflow
+validation, not primary debugging.
+
+## T12.9 — Future runtime reference validation
+
+Confirm the resulting structure supports XTTS, OpenVoice,
+Fish Audio without architectural changes. Document any
+missing abstractions.
+
+Validation:
+- The descriptor schema is stable (no new fields required
+  for XTTS / OpenVoice / Fish)
+- The Runtime Section component renders any new
+  `runtime-registry/<id>/` entry with zero code changes
+- Any new entry follows the same `descriptor.json +
+  Dockerfile + requirements.txt + server.py + README.md +
+  tests/` layout
+
+## §12 Deliverables
+
+1. `runtime-registry/omnivoice-base/` — full entry
+2. `runtime-registry/f5-tts-base/` — full entry
+3. Descriptor validation tests
+4. Runtime Service Contract tests
+5. Runtime discovery tests (3 descriptors)
+6. Lifecycle tests (Install / Start / Stop / Update / Remove
+   per runtime)
+7. Generation validation results (real audio E2E for
+   functional runtimes; gap documented otherwise)
+8. Chrome DevTools screenshots
+9. Runtime Registry audit
+10. Architectural findings + migration recommendations
+11. Update `docs/.agents/SPECS/FEATURES/runtime-canonical-models-page/STATUS.md`
+    when §12 is complete
+
+The T9 STATUS update remains the final task after §12
+completes.

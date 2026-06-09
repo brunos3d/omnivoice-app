@@ -81,6 +81,9 @@ class OmniVoiceService:
     def _do_load(self, repo_id: Optional[str] = None) -> None:
         os.environ["HF_HOME"] = str(settings.HF_HOME)
         os.makedirs(settings.HF_HOME, exist_ok=True)
+        # Reduce CUDA memory fragmentation. expandable_segments lets the allocator
+        # grow and shrink segments instead of holding fixed-size blocks forever.
+        os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
         from omnivoice import OmniVoice
         from omnivoice.utils.common import get_best_device
@@ -160,7 +163,9 @@ class OmniVoiceService:
         # Offload cached voice prompts before emptying cache so their
         # GPU memory is reclaimed by empty_cache.
         self._move_voice_prompts_to("cpu")
-        # Always run empty_cache regardless of where the model was.
+        # gc before empty_cache so Python reference cycles don't keep
+        # tensor storage alive past the allocator flush.
+        gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -172,17 +177,31 @@ class OmniVoiceService:
         pin VRAM indefinitely, causing a silent memory leak.
         """
         for voice_id, prompt in list(self._voice_prompt_cache.items()):
-            self._move_prompt_to(prompt, device)
-            if hasattr(prompt, "to"):
-                self._voice_prompt_cache[voice_id] = prompt
+            self._voice_prompt_cache[voice_id] = self._move_prompt_to(prompt, device)
 
-    def _move_prompt_to(self, prompt, device: str) -> None:
-        """Move a single cached voice prompt to *device* (best-effort)."""
+    def _move_prompt_to(self, prompt, device: str):
+        """Move a single cached voice prompt to *device* (best-effort).
+
+        Returns the moved prompt. MUST be used — ``tensor.to(device)`` returns
+        a new tensor rather than modifying in place, so discarding the return
+        value silently leaves the original on its original device.
+        """
         try:
+            if isinstance(prompt, torch.Tensor):
+                return prompt.to(device)
+            if isinstance(prompt, dict):
+                return {
+                    k: v.to(device) if isinstance(v, torch.Tensor) else v
+                    for k, v in prompt.items()
+                }
+            if isinstance(prompt, (list, tuple)):
+                moved = [v.to(device) if isinstance(v, torch.Tensor) else v for v in prompt]
+                return type(prompt)(moved)
             if hasattr(prompt, "to"):
-                prompt.to(device)
+                return prompt.to(device)
         except Exception as exc:
             logger.warning("Failed to move voice prompt to %s: %s", device, exc)
+        return prompt
 
     # ------------------------------------------------------------------
     # Properties
@@ -223,11 +242,11 @@ class OmniVoiceService:
     ):
         if voice_id in self._voice_prompt_cache:
             logger.debug("Voice prompt cache hit | voice_id=%s", voice_id)
-            prompt = self._voice_prompt_cache[voice_id]
             # Move only THIS prompt to GPU — other cached prompts stay on CPU so
             # the generation peak holds at most one prompt in VRAM regardless of
             # how many voices are in the library.
-            self._move_prompt_to(prompt, "cuda")
+            # _move_prompt_to returns the moved object (tensor.to() is not in-place).
+            prompt = self._move_prompt_to(self._voice_prompt_cache[voice_id], "cuda")
             self._voice_prompt_cache[voice_id] = prompt
             return prompt
 

@@ -234,6 +234,26 @@ class DockerRuntimeDriver:
         except Exception:
             return None
 
+    def _data_volume_mounts(self, client: Any) -> dict:
+        """Return volume mounts to attach to runtime containers.
+
+        Reads the backend container's own mounts and re-uses any named volumes
+        (non-bind-mount) so that runtime containers share the same /data scratch
+        space for reference audio temp files.
+        """
+        try:
+            with open("/etc/hostname") as f:
+                own_container_id = f.read().strip()
+            me = client.containers.get(own_container_id)
+            mounts = me.attrs.get("Mounts", []) or []
+            result = {}
+            for m in mounts:
+                if m.get("Type") == "volume" and m.get("Name") and m.get("Destination"):
+                    result[m["Name"]] = {"bind": m["Destination"], "mode": "rw"}
+            return result
+        except Exception:
+            return {}
+
     def _port_bindings(self, port: int) -> dict:
         # Bind the container's port to a random host port
         # (host=0). This avoids host port conflicts with
@@ -576,6 +596,9 @@ class DockerRuntimeDriver:
                 # derives it from the backend's own network
                 # attachments.
                 network=self._compose_network_name(client),
+                # Share the backend's named volumes (e.g. omnivoice_data at /data)
+                # so runtime containers can read reference audio staged to /data/tmp/.
+                volumes=self._data_volume_mounts(client) or None,
             )
         except BaseException as exc:
             self._translate_install_error(exc, runtime_id)

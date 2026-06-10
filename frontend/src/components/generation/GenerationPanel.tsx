@@ -42,7 +42,7 @@ export function GenerationPanel() {
   const setLanguage = useAppStore((s) => s.setTtsLanguage);
   const selectedModelId = useAppStore((s) => s.selectedModelId);
   const setSelectedModelId = useAppStore((s) => s.setSelectedModelId);
-  const { activeModel } = useActiveModel();
+  const { activeModel, activeModelId } = useActiveModel();
   const { data: allModels } = useModels();
   const generate = useSubmitGeneration();
   const activeVoice = useActiveVoice();
@@ -168,15 +168,19 @@ export function GenerationPanel() {
       setIsImporting(false);
     }
 
-    const currentModel = allModels?.find((m) => m.id === selectedModelId);
+    // Submit the RESOLVED model id (useActiveModel: selected → active → default).
+    // The readiness/capability gates above were evaluated against this resolution;
+    // sending the raw store value desyncs the payload from the UI when no model
+    // was manually selected (backend would fall back to the catalog default).
+    const currentModel = allModels?.find((m) => m.id === activeModelId);
     const filteredParams = filterSettingsForModel(
-      modelSettings[selectedModelId ?? "__default__"] ?? {},
+      modelSettings[activeModelId ?? "__default__"] ?? {},
       currentModel?.settings_schema,
     );
 
     generate.mutate({
       text: text.trim(),
-      model_id: selectedModelId,
+      model_id: activeModelId,
       voice_profile_id: voiceProfileId,
       language: language,
       ref_text: transcript || null,
@@ -185,7 +189,7 @@ export function GenerationPanel() {
     });
   }, [
     canGenerate, selectedProfile, temporaryVoice, promoteTemporaryToPersisted,
-    text, selectedModelId, language, voiceDesign, modelSettings, generate, allModels,
+    text, activeModelId, language, voiceDesign, modelSettings, generate, allModels,
   ]);
 
   // Promote mutation errors to the structured error dialog.

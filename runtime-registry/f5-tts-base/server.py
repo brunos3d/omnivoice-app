@@ -123,8 +123,7 @@ def _load_f5_tts_pipeline() -> Any:
 
     _pipeline = F5TTS(
         model="F5TTS_v1_Base",
-        vocoder="vocos",
-        device=_device,
+        device="cuda:0",  # f5-tts 1.0.3 expects a string, not torch.device
     )
     # F5-TTS outputs at 24kHz by default.
     _sample_rate = 24000
@@ -196,24 +195,31 @@ def _run_inference(req: GenerateRequest) -> tuple[np.ndarray, int]:
     if _pipeline is None:
         raise HTTPException(status_code=503, detail="pipeline not loaded")
 
-    ref_audio = req.params.get("ref_audio_path") or None
-    ref_text = req.params.get("ref_text") or ""
+    ref_file = req.params.get("ref_audio_path") or None
+    # Fall back to stored variant transcript to skip f5-tts ASR auto-transcription
+    # (torch 2.12 meta-tensor bug causes transcribe() to crash when ref_text is empty).
+    ref_text = req.params.get("ref_text") or req.params.get("transcript") or ""
+
+    # Voice-optional mode: use the bundled default reference when no voice is supplied.
+    if ref_file is None:
+        ref_file = "/opt/conda/lib/python3.11/site-packages/f5_tts/infer/examples/basic/basic_ref_en.wav"
+        ref_text = ref_text or "Some call me nature, others call me mother nature."
 
     infer_kwargs: dict = {
         "gen_text": req.text,
-        "ref_audio": ref_audio,
+        "ref_file": ref_file,  # f5-tts 1.0.3: ref_audio → ref_file
         "ref_text": ref_text,
     }
 
-    # Expose user-tunable generation parameters.
+    # Expose user-tunable generation parameters (guard against null values).
     params = req.params or {}
-    if "speed" in params:
+    if params.get("speed") is not None:
         infer_kwargs["speed"] = float(params["speed"])
-    if "nfe_step" in params:
+    if params.get("nfe_step") is not None:
         infer_kwargs["nfe_step"] = int(params["nfe_step"])
-    if "cfg_strength" in params:
+    if params.get("cfg_strength") is not None:
         infer_kwargs["cfg_strength"] = float(params["cfg_strength"])
-    if "cross_fade_duration" in params:
+    if params.get("cross_fade_duration") is not None:
         infer_kwargs["cross_fade_duration"] = float(params["cross_fade_duration"])
 
     wav, sample_rate, _spec = _pipeline.infer(**infer_kwargs)

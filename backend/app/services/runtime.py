@@ -214,14 +214,21 @@ class PeakVoxRuntime:
         return model_registry.is_generating
 
     async def is_ready(self) -> bool:
-        """True when the runtime can serve — the default model adapter reports healthy."""
+        """True when the runtime can serve any generation request."""
         if not self._adapters:
             return False
+        # Runtime-managed models: ready if ANY registered model has an active runtime instance.
+        if self._runtime_manager is not None:
+            for adapter in self._adapters.values():
+                descriptors = self._runtime_manager.registry.list_for_model(adapter.descriptor.id)
+                if descriptors and self._runtime_manager.resolve(adapter.descriptor.id) is not None:
+                    return True
+        # In-process models: check the default model's adapter health.
         try:
             default = self.resolve_model(None)
+            return await self.get_adapter(default.id).health_check()
         except ModelNotRegistered:
             return False
-        return await self.get_adapter(default.id).health_check()
 
     def resolve_model(self, model_id: Optional[str]) -> ModelDescriptor:
         """Resolve a model id to its descriptor; ``None`` → the default adapter's model."""

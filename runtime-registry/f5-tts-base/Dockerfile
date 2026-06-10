@@ -33,7 +33,18 @@ WORKDIR /app
 # Install Python deps first (better layer cache for the
 # requirements that change less often than the source).
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# f5-tts 1.0.3 upgrades torch (e.g. 2.4.0 → 2.12+cu130) via transitive deps
+# (bitsandbytes, accelerate). After f5-tts installs, torchaudio and torchvision
+# are still compiled against the OLD torch ABI and fail to load. Re-install them
+# from the matching cu-index so their ABI agrees with whatever torch ended up installed.
+RUN pip install --no-cache-dir -r /app/requirements.txt && \
+    CUDA_TAG=$(python3 -c "import torch; v=torch.version.cuda; print('cu' + v.replace('.','') if v else 'cpu')") && \
+    echo "torch $(python3 -c 'import torch; print(torch.__version__)') → reinstalling torchaudio+torchvision for ${CUDA_TAG}" && \
+    pip install --no-cache-dir --upgrade torchaudio torchvision \
+        --index-url "https://download.pytorch.org/whl/${CUDA_TAG}" && \
+    pip install --no-cache-dir torchcodec && \
+    python3 -c "import torch, torchaudio; print('ABI OK — torch', torch.__version__, 'torchaudio', torchaudio.__version__)"
 
 # Copy the runtime service entrypoint.
 COPY server.py /app/server.py

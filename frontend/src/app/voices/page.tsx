@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Plus, Library, SlidersHorizontal } from "lucide-react"
 import { PageLayout } from "@/components/shell/PageLayout"
@@ -57,6 +58,7 @@ export default function VoiceLibraryPage() {
   const activeVoice = useActiveVoice()
   const discardTemporaryVoice = useAppStore((s) => s.discardTemporaryVoice)
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const [scope, setScope] = useState<VoiceScope>("mine")
   const [viewMode, setViewMode] = useState<"library" | "variants">("library")
@@ -145,6 +147,9 @@ export default function VoiceLibraryPage() {
       recommendedModelId={recommendedModelId}
       onUseInTts={(voice) => {
         setSelectedProfile(voice)
+        // Land on the TTS page with the voice applied — same flow as the
+        // preset tab's useInTts (select → navigate).
+        router.push("/")
       }}
       onEdit={openEdit}
       onDelete={(voice) => deleteMutation.mutate(voice.id)}

@@ -1,6 +1,6 @@
-# Contributing to OmniVoice App
+# Contributing to PeakVox (formerly OmniVoice App)
 
-First — thank you for considering a contribution! OmniVoice App is a source-available, self-hostable platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice), and it grows through community contributions.
+First — thank you for considering a contribution! PeakVox (formerly OmniVoice App) is a source-available, self-hostable platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice), and it grows through community contributions.
 
 Before you start, please read this guide, our [Code of Conduct](CODE_OF_CONDUCT.md), and the [Voice Usage Policy](VOICE_USAGE_POLICY.md). By contributing, you agree that your contributions are licensed under the project's [LICENSE](LICENSE).
 
@@ -188,15 +188,15 @@ Documentation is part of "done":
 
 ## Contributor License & Sign-off
 
-- By submitting a contribution, you agree it is licensed under the project's [LICENSE](LICENSE) (OmniVoice App Community License, based on the Elastic License 2.0), and that you have the right to contribute it.
+- By submitting a contribution, you agree it is licensed under the project's [LICENSE](LICENSE) (PeakVox (formerly OmniVoice App) Community License, based on the Elastic License 2.0), and that you have the right to contribute it.
 - Ensure any third-party code you add is license-compatible and recorded in [NOTICE](NOTICE).
 - We use a **Developer Certificate of Origin** model — sign off your commits:
   ```bash
   git commit -s -m "feat(ui): ..."
   ```
 
-Thank you for helping make OmniVoice App better! 🎙️
+Thank you for helping make PeakVox (formerly OmniVoice App) better! 🎙️
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0).</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0).</sub>

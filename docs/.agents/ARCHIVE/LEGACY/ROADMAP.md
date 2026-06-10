@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap describes the direction of **OmniVoice App**. It is a statement of intent, not a commitment — priorities and timelines may change. Features are grouped by horizon and, where relevant, by which [edition](COMMERCIAL_MODEL.md) they target.
+This roadmap describes the direction of **PeakVox (formerly OmniVoice App)**. It is a statement of intent, not a commitment — priorities and timelines may change. Features are grouped by horizon and, where relevant, by which [edition](COMMERCIAL_MODEL.md) they target.
 
 > See also: [Architecture](ARCHITECTURE.md) · [SaaS Architecture](SAAS_ARCHITECTURE.md) · [API](API.md) · [Voice Model](VOICE_MODEL.md) · [Data Model](DATA_MODEL.md) · [Languages](LANGUAGES.md) · [Commercial Model](COMMERCIAL_MODEL.md) · [Contributing](../../../../CONTRIBUTING.md) · [Changelog](../../../../CHANGELOG.md)
 
@@ -80,7 +80,7 @@ Foundations for multi-user and programmatic use (start of the open-core split):
 
 The commercial offerings, built on the same open core:
 
-- **SaaS / Cloud Edition** — fully managed, hosted OmniVoice App.
+- **SaaS / Cloud Edition** — fully managed, hosted PeakVox (formerly OmniVoice App).
 - **Billing** — subscriptions, metered usage, and quotas.
 - **Enterprise Features** — SSO/SAML, audit logging, advanced security and compliance, SLAs, and support.
 - **Multi-tenancy** — secure isolation for many organizations on shared infrastructure.
@@ -89,15 +89,15 @@ The commercial offerings, built on the same open core:
 
 ## Editions at a Glance
 
-| Capability | Community | Cloud (future) | Enterprise (future) |
-| ---------- | :-------: | :------------: | :-----------------: |
-| Self-hosted | ✅ | — | ✅ (managed/on-prem) |
-| Core TTS / Clone / Design | ✅ | ✅ | ✅ |
-| Stable Voice IDs & public API | ✅ | ✅ | ✅ |
-| Teams & Workspaces | Roadmap | ✅ | ✅ |
-| API Keys & Analytics | ✅ (local) | ✅ (scoped + metered) | ✅ |
-| Managed hosting & billing | — | ✅ | ✅ |
-| SSO, audit, multi-tenancy, SLA | — | Partial | ✅ |
+| Capability                     | Community  |    Cloud (future)     | Enterprise (future)  |
+| ------------------------------ | :--------: | :-------------------: | :------------------: |
+| Self-hosted                    |     ✅     |           —           | ✅ (managed/on-prem) |
+| Core TTS / Clone / Design      |     ✅     |          ✅           |          ✅          |
+| Stable Voice IDs & public API  |     ✅     |          ✅           |          ✅          |
+| Teams & Workspaces             |  Roadmap   |          ✅           |          ✅          |
+| API Keys & Analytics           | ✅ (local) | ✅ (scoped + metered) |          ✅          |
+| Managed hosting & billing      |     —      |          ✅           |          ✅          |
+| SSO, audit, multi-tenancy, SLA |     —      |        Partial        |          ✅          |
 
 See [COMMERCIAL_MODEL.md](COMMERCIAL_MODEL.md) for how features are allocated across editions and how the open-core boundary is drawn.
 
@@ -111,4 +111,4 @@ See [COMMERCIAL_MODEL.md](COMMERCIAL_MODEL.md) for how features are allocated ac
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors.</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors.</sub>

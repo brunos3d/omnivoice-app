@@ -1,12 +1,13 @@
 # Changelog
 
-All notable changes to **OmniVoice App** are documented in this file.
+All notable changes to **PeakVox (formerly OmniVoice App)** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
+
 - **Kokoro preset voice adapter + ProviderVoice domain** (Phase 1):
   - `ProviderVoice` frozen dataclass — ephemeral, in-memory preset voice identity (no DB, no assets, no variants).
   - `ProviderVoiceCatalog` runtime-checkable protocol — optional interface on `ModelAdapter` for providers with built-in presets.
@@ -23,13 +24,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - **TTS auto-configuration** — selecting a voice applies its language, preset, and voice design, consistent with the API.
   - **SaaS architecture preparation** — identity and rate-limit seams, `EDITION` flag; no authentication/billing implemented.
   - **Docs**: `API`, `VOICE_MODEL`, `DATA_MODEL`, `LANGUAGES`, `SAAS_ARCHITECTURE`, `DEVELOPER`, and design specs under `docs/superpowers/specs/`.
-- Project governance and documentation suite: `README`, `LICENSE` (OmniVoice App Community License, based on Elastic License 2.0), `NOTICE`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, `VOICE_USAGE_POLICY`, and `docs/` (`ARCHITECTURE`, `ROADMAP`, `FAQ`, `COMMERCIAL_MODEL`).
+- Project governance and documentation suite: `README`, `LICENSE` (PeakVox (formerly OmniVoice App) Community License, based on Elastic License 2.0), `NOTICE`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, `VOICE_USAGE_POLICY`, and `docs/` (`ARCHITECTURE`, `ROADMAP`, `FAQ`, `COMMERCIAL_MODEL`).
 
 ## [0.1.0] - 2026-06-02
 
-Initial public preview of OmniVoice App — a self-hosted Voice Cloning, Text-to-Speech, and Voice Design platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice).
+Initial public preview of PeakVox (formerly OmniVoice App) — a self-hosted Voice Cloning, Text-to-Speech, and Voice Design platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice).
 
 ### Added
+
 - **Text-to-Speech** workspace with fine-grained generation controls (`num_step`, `guidance_scale`, `t_shift`, `denoise`, `speed`/`duration`).
 - **Voice Cloning** from uploaded files or in-browser recording, with per-profile clone-prompt caching.
 - **Voice Design Builder** — controlled-vocabulary attribute editor (Gender, Age, Pitch, Style, English Accent, Chinese Dialect) with searchable picker and one-attribute-per-category enforcement.
@@ -45,6 +47,7 @@ Initial public preview of OmniVoice App — a self-hosted Voice Cloning, Text-to
 - **600+ language** support via OmniVoice (auto-detect or manual selection).
 
 ### Notes
+
 - Persistence defaults to **SQLite**; the data layer is **PostgreSQL-ready** for future multi-user deployments (see [ROADMAP](docs/ROADMAP.md)).
 - The Community Edition ships without built-in user authentication — see [SECURITY.md](SECURITY.md) before any internet-facing deployment.
 

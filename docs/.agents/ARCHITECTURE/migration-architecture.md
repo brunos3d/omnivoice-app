@@ -50,17 +50,17 @@ prefix) — or keep old paths in `artifacts` to avoid moving bytes initially.
 **Guarantee:** `public_voice_id` is carried across **unchanged**, so every API client, SDK,
 and stored reference keeps working. No external breakage.
 
-## 3. The rename (OmniVoice App → PeakVox)
+## 3. The rename (PeakVox (formerly OmniVoice App) → PeakVox)
 
 A bounded, mostly-cosmetic slice — the domain is already model-agnostic:
 
-| Layer | Change | Compatibility |
-|---|---|---|
-| Product/docs | "OmniVoice App" → "PeakVox" (this suite already does) | n/a |
-| API key prefix | `ov_live_…` → `pv_live_…` for **new** keys | old prefix **still accepted**; verified by hash, not prefix |
-| Package/module names | optional internal rename | internal only; do last, low priority |
-| Env vars | `OMNIVOICE_*` → `PEAKVOX_*` | accept both during transition |
-| Default model id | `omnivoice-base` stays (it *is* an OmniVoice model) | unchanged |
+| Layer                | Change                                                                   | Compatibility                                               |
+| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Product/docs         | "PeakVox (formerly OmniVoice App)" → "PeakVox" (this suite already does) | n/a                                                         |
+| API key prefix       | `ov_live_…` → `pv_live_…` for **new** keys                               | old prefix **still accepted**; verified by hash, not prefix |
+| Package/module names | optional internal rename                                                 | internal only; do last, low priority                        |
+| Env vars             | `OMNIVOICE_*` → `PEAKVOX_*`                                              | accept both during transition                               |
+| Default model id     | `omnivoice-base` stays (it _is_ an OmniVoice model)                      | unchanged                                                   |
 
 The rename touches **no domain table semantics**. `OmniVoice` survives as the name of the
 first **model provider**, not the product.
@@ -87,10 +87,10 @@ variant pins. See [ADR-0002](../DECISIONS/adr-0002-model-as-first-class-entity.m
 
 ## 6. SQLite → Postgres (Cloud trigger)
 
-| Phase | DB | Migrations |
-|---|---|---|
-| CE today / always | SQLite | idempotent startup runner |
-| Cloud launch | PostgreSQL | **Alembic** (adopt at the cut-over; baseline = current schema) |
+| Phase             | DB         | Migrations                                                     |
+| ----------------- | ---------- | -------------------------------------------------------------- |
+| CE today / always | SQLite     | idempotent startup runner                                      |
+| Cloud launch      | PostgreSQL | **Alembic** (adopt at the cut-over; baseline = current schema) |
 
 - SQLAlchemy models are portable; JSON → `jsonb`; queries in use are Postgres-compatible.
 - Cut-over: stand up Postgres, run the Alembic baseline (= the additive schema), import data,

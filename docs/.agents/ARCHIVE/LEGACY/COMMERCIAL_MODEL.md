@@ -1,6 +1,6 @@
 # Commercial Model
 
-This document describes the commercialization strategy for **OmniVoice App**: an **open-core** model with a free, source-available Community Edition and planned commercial Cloud and Enterprise editions.
+This document describes the commercialization strategy for **PeakVox (formerly OmniVoice App)**: an **open-core** model with a free, source-available Community Edition and planned commercial Cloud and Enterprise editions.
 
 > This is a strategic overview, not an offer or a contract. Licensing terms are governed by the [LICENSE](../../../../LICENSE). See also: [Roadmap](ROADMAP.md) · [Architecture](ARCHITECTURE.md) · [FAQ](FAQ.md)
 
@@ -8,7 +8,7 @@ This document describes the commercialization strategy for **OmniVoice App**: an
 
 ## Philosophy: Open Core
 
-OmniVoice App follows an **open-core** strategy:
+PeakVox (formerly OmniVoice App) follows an **open-core** strategy:
 
 - The **core** of the product is source-available and free to self-host forever.
 - **Commercial value** is added around the core — managed hosting, collaboration, scale, security, compliance, and support — for users who want it.
@@ -24,14 +24,14 @@ The guiding principle: **the Community Edition must be genuinely useful on its o
 
 - **Audience:** individuals, hobbyists, researchers, educators, and companies running it internally.
 - **Deployment:** self-hosted via Docker Compose.
-- **License:** [OmniVoice App Community License](../../../../LICENSE) (based on the Elastic License 2.0) — source-available; self-hosting and internal business use permitted; resale and competing managed services prohibited.
+- **License:** [PeakVox (formerly OmniVoice App) Community License](../../../../LICENSE) (based on the Elastic License 2.0) — source-available; self-hosting and internal business use permitted; resale and competing managed services prohibited.
 - **Cost:** free.
 - **Capabilities:** full TTS, Voice Cloning, Voice Design, Voice Library, presets, history, GPU/CPU inference, MinIO storage. See the [Roadmap](ROADMAP.md#current-features-) for the current feature set.
 
 ### Cloud Edition (future)
 
-- **Audience:** users and teams who want OmniVoice App without operating infrastructure.
-- **Deployment:** fully managed and hosted by the OmniVoice App team.
+- **Audience:** users and teams who want PeakVox (formerly OmniVoice App) without operating infrastructure.
+- **Deployment:** fully managed and hosted by the PeakVox (formerly OmniVoice App) team.
 - **Model:** subscription and/or metered usage with quotas; no hardware to manage.
 - **Adds:** managed GPU inference, automatic updates, hosted storage, accounts, teams/workspaces, API keys, and usage analytics.
 
@@ -49,20 +49,20 @@ The guiding principle: **the Community Edition must be genuinely useful on its o
 Features are allocated across editions using a few consistent rules:
 
 1. **Core generation is always in Community.** TTS, cloning, and design — the things that make the product what it is — stay free and self-hostable.
-2. **Convenience of *not* self-hosting is the Cloud value.** Managed infrastructure, updates, and hosted storage are the primary Cloud differentiators.
+2. **Convenience of _not_ self-hosting is the Cloud value.** Managed infrastructure, updates, and hosted storage are the primary Cloud differentiators.
 3. **Multi-user, scale, and governance trend commercial.** Teams, workspaces, API keys, analytics, SSO, audit, and multi-tenancy are where organizations derive disproportionate value and are natural commercial features — though foundational pieces (auth, workspaces) are on the Community [roadmap](ROADMAP.md).
 4. **Security and compliance depth is Enterprise.** Baseline security guidance is free ([SECURITY.md](../../../../SECURITY.md)); advanced governance, certifications, and SLAs are Enterprise.
 
-| Capability | Community | Cloud | Enterprise |
-| ---------- | :-------: | :---: | :--------: |
-| TTS / Voice Clone / Voice Design | ✅ | ✅ | ✅ |
-| Voice Library, presets, history | ✅ | ✅ | ✅ |
-| Self-hosting | ✅ | — | ✅ (managed / on-prem) |
-| Managed hosting & automatic updates | — | ✅ | ✅ |
-| Teams, workspaces, API keys, analytics | Roadmap | ✅ | ✅ |
-| Billing, quotas, metered usage | — | ✅ | ✅ |
-| SSO/SAML, RBAC, audit logging | — | Partial | ✅ |
-| Multi-tenancy, SLA, priority support | — | Partial | ✅ |
+| Capability                             | Community |  Cloud  |       Enterprise       |
+| -------------------------------------- | :-------: | :-----: | :--------------------: |
+| TTS / Voice Clone / Voice Design       |    ✅     |   ✅    |           ✅           |
+| Voice Library, presets, history        |    ✅     |   ✅    |           ✅           |
+| Self-hosting                           |    ✅     |    —    | ✅ (managed / on-prem) |
+| Managed hosting & automatic updates    |     —     |   ✅    |           ✅           |
+| Teams, workspaces, API keys, analytics |  Roadmap  |   ✅    |           ✅           |
+| Billing, quotas, metered usage         |     —     |   ✅    |           ✅           |
+| SSO/SAML, RBAC, audit logging          |     —     | Partial |           ✅           |
+| Multi-tenancy, SLA, priority support   |     —     | Partial |           ✅           |
 
 ---
 
@@ -70,7 +70,7 @@ Features are allocated across editions using a few consistent rules:
 
 ### Why a source-available license
 
-OmniVoice App uses the [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license) as the basis for its [Community License](../../../../LICENSE). This choice:
+PeakVox (formerly OmniVoice App) uses the [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license) as the basis for its [Community License](../../../../LICENSE). This choice:
 
 - **Keeps the source open** for reading, modification, and self-hosting.
 - **Permits internal commercial use** so companies can adopt it freely.
@@ -79,7 +79,7 @@ OmniVoice App uses the [Elastic License 2.0](https://www.elastic.co/licensing/el
 
 ### Upstream compatibility
 
-The underlying [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine is **Apache-2.0**, a permissive license. This is what makes the open-core model viable: Apache-2.0 allows OmniVoice App's *own* original code to be distributed under more restrictive source-available terms, provided upstream attribution and `NOTICE` requirements are preserved. The Community License explicitly does **not** restrict OmniVoice itself — see [LICENSE Part B.3](../../../../LICENSE) and [NOTICE](../../../../NOTICE).
+The underlying [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine is **Apache-2.0**, a permissive license. This is what makes the open-core model viable: Apache-2.0 allows PeakVox (formerly OmniVoice App)'s _own_ original code to be distributed under more restrictive source-available terms, provided upstream attribution and `NOTICE` requirements are preserved. The Community License explicitly does **not** restrict OmniVoice itself — see [LICENSE Part B.3](../../../../LICENSE) and [NOTICE](../../../../NOTICE).
 
 ### Commercial licensing
 
@@ -90,7 +90,7 @@ Uses outside the Community grant — reselling, managed-service hosting, white-l
 The project may, at its discretion, offer additional licensing arrangements over time, such as:
 
 - **Dual licensing** — the Community License for open use, plus negotiated commercial licenses for restricted use.
-- **OEM / embedding licenses** for integrating OmniVoice App into other products.
+- **OEM / embedding licenses** for integrating PeakVox (formerly OmniVoice App) into other products.
 - **Relicensing of older versions** under more permissive terms if and when appropriate ([LICENSE Part B / §2.5](../../../../LICENSE)).
 
 Any such options will be announced and applied prospectively; they will not retroactively reduce the rights already granted for a released version.
@@ -106,4 +106,4 @@ Any such options will be announced and applied prospectively; they will not retr
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0). This document is informational and not legal advice.</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0). This document is informational and not legal advice.</sub>

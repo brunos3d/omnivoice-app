@@ -5,6 +5,7 @@
 All 620 backend tests pass after both fixes.
 
 Key test files that cover the activation_status path:
+
 - `tests/test_api_models_with_runtimes.py` — 12 tests (all pass)
 - `tests/test_bridge_activation_phase2d.py` — tests activation bridge
 - `tests/test_runtime_registry_authority_t13.py` — Registry as single source of truth
@@ -43,11 +44,11 @@ compound key rather than silently returning only `preset_name`-matched rows.
 
 ### Post-fix state
 
-| Surface | Before fix | After fix |
-|---|---|---|
-| `activation_status` source | `ModelDescriptor.status` (always "active") | `RuntimeManager.resolve()` |
-| Models page | OmniVoice shown as inactive | OmniVoice shown as Installed/Active |
-| Compatible Models panel | Kokoro appeared (not available) | OmniVoice appears; Kokoro absent |
-| TTS Model Selector | "No compatible models" | OmniVoice Base listed |
-| Voice cards | "Not compatible" badges | "Compatible" badges (17 voices) |
-| Backend tests | 620 pass | 620 pass |
+| Surface                    | Before fix                                 | After fix                                           |
+| -------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| `activation_status` source | `ModelDescriptor.status` (always "active") | `RuntimeManager.resolve()`                          |
+| Models page                | OmniVoice shown as inactive                | OmniVoice shown as Installed/Active                 |
+| Compatible Models panel    | Kokoro appeared (not available)            | PeakVox (formerly OmniVoice App)ears; Kokoro absent |
+| TTS Model Selector         | "No compatible models"                     | OmniVoice Base listed                               |
+| Voice cards                | "Not compatible" badges                    | "Compatible" badges (17 voices)                     |
+| Backend tests              | 620 pass                                   | 620 pass                                            |

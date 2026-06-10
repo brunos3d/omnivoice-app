@@ -1,7 +1,7 @@
-OmniVoice App
-Copyright (c) 2026 Bruno Silva and the OmniVoice App contributors.
+PeakVox (formerly OmniVoice App)
+Copyright (c) 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors.
 
-This product is licensed under the OmniVoice App Community License (based on the
+This product is licensed under the PeakVox (formerly OmniVoice App) Community License (based on the
 Elastic License 2.0). See the LICENSE file for terms.
 
 --------------------------------------------------------------------------------
@@ -10,7 +10,7 @@ Third-Party Components and Attributions
 
 This product includes and depends on software developed by third parties. Their
 licenses govern your use of those components and are not modified by the
-OmniVoice App Community License.
+PeakVox (formerly OmniVoice App) Community License.
 
 1. OmniVoice (k2-fsa/OmniVoice)
    - Source:  https://github.com/k2-fsa/OmniVoice

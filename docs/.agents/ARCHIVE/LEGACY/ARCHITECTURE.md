@@ -1,6 +1,6 @@
 # Architecture
 
-> Technical architecture of **OmniVoice App** — a self-hosted Voice Cloning, Text-to-Speech, and Voice Design platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice).
+> Technical architecture of **PeakVox (formerly OmniVoice App)** — a self-hosted Voice Cloning, Text-to-Speech, and Voice Design platform built on [OmniVoice](https://github.com/k2-fsa/OmniVoice).
 >
 > See also: [README](../../../../README.md) · [Roadmap](ROADMAP.md) · [Commercial Model](COMMERCIAL_MODEL.md) · [Contributing](../../../../CONTRIBUTING.md)
 
@@ -8,7 +8,7 @@
 
 ## 1. High-Level Architecture
 
-OmniVoice App is a two-service application — a **Next.js frontend** and a **FastAPI backend** — backed by a relational database for metadata and **MinIO** (S3-compatible) for audio objects. All services are orchestrated with Docker Compose. The OmniVoice model runs in-process inside the backend, accelerated by a GPU when available.
+PeakVox (formerly OmniVoice App) is a two-service application — a **Next.js frontend** and a **FastAPI backend** — backed by a relational database for metadata and **MinIO** (S3-compatible) for audio objects. All services are orchestrated with Docker Compose. The OmniVoice model runs in-process inside the backend, accelerated by a GPU when available.
 
 ```mermaid
 flowchart TB
@@ -61,13 +61,13 @@ flowchart TB
 
 A [Next.js 15](https://nextjs.org) App Router application (React 19, TypeScript, Tailwind, shadcn/ui).
 
-| Route | Purpose |
-| ----- | ------- |
-| `/` | Text-to-Speech workspace (text input, voice selection, generation settings) |
-| `/clone` | Voice Clone wizard (record/upload reference → profile) |
-| `/voices` | Voice Library (CRUD over saved voice profiles) |
-| `/history` | Generation history (list, replay, delete jobs) |
-| `/settings` | App preferences and generation defaults |
+| Route       | Purpose                                                                     |
+| ----------- | --------------------------------------------------------------------------- |
+| `/`         | Text-to-Speech workspace (text input, voice selection, generation settings) |
+| `/clone`    | Voice Clone wizard (record/upload reference → profile)                      |
+| `/voices`   | Voice Library (CRUD over saved voice profiles)                              |
+| `/history`  | Generation history (list, replay, delete jobs)                              |
+| `/settings` | App preferences and generation defaults                                     |
 
 **State management**
 
@@ -76,13 +76,13 @@ A [Next.js 15](https://nextjs.org) App Router application (React 19, TypeScript,
 
 **Key modules**
 
-| Path | Responsibility |
-| ---- | -------------- |
-| `lib/api.ts` | All HTTP calls; base URL from `NEXT_PUBLIC_API_URL` |
-| `hooks/use-generation.ts` | Submit + poll generation jobs |
-| `hooks/use-media-recorder.ts` | Browser `MediaRecorder` wrapper for in-browser capture |
-| `config/voice-design.ts` | Single source of truth for the Voice Design controlled vocabulary |
-| `types/index.ts` | Shared TS types (`VoiceProfile`, `JobStatus`, `GenerationRequest`, …) |
+| Path                          | Responsibility                                                        |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `lib/api.ts`                  | All HTTP calls; base URL from `NEXT_PUBLIC_API_URL`                   |
+| `hooks/use-generation.ts`     | Submit + poll generation jobs                                         |
+| `hooks/use-media-recorder.ts` | Browser `MediaRecorder` wrapper for in-browser capture                |
+| `config/voice-design.ts`      | Single source of truth for the Voice Design controlled vocabulary     |
+| `types/index.ts`              | Shared TS types (`VoiceProfile`, `JobStatus`, `GenerationRequest`, …) |
 
 ```mermaid
 flowchart LR
@@ -99,34 +99,34 @@ flowchart LR
 
 A [FastAPI](https://fastapi.tiangolo.com) application (Python 3.11+, async SQLAlchemy 2, Pydantic 2).
 
-| Module | Purpose |
-| ------ | ------- |
-| `main.py` | App entrypoint — middleware, static `/audio` mount, fires model load as a startup background task |
-| `core/config.py` | Pydantic settings (env-driven); all paths derive from `DATA_DIR` |
-| `core/database.py` | Async SQLAlchemy + SQLite via `aiosqlite`; `init_db()` creates tables on startup |
-| `models/db.py` | ORM models: `VoiceProfile`, `GenerationJob` |
-| `schemas/` | Pydantic request/response schemas |
-| `api/generation.py` | `POST /generate` → creates a job row, fires `_process_job()` as an async task; polled via `GET /jobs/{id}` |
-| `api/voices.py` | CRUD for voice profiles |
-| `api/health.py` | Health + model-status endpoints |
-| `api/media.py` | Media/object retrieval helpers |
-| `api/settings.py` | App/generation settings persistence |
+| Module                          | Purpose                                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `main.py`                       | App entrypoint — middleware, static `/audio` mount, fires model load as a startup background task                         |
+| `core/config.py`                | Pydantic settings (env-driven); all paths derive from `DATA_DIR`                                                          |
+| `core/database.py`              | Async SQLAlchemy + SQLite via `aiosqlite`; `init_db()` creates tables on startup                                          |
+| `models/db.py`                  | ORM models: `VoiceProfile`, `GenerationJob`                                                                               |
+| `schemas/`                      | Pydantic request/response schemas                                                                                         |
+| `api/generation.py`             | `POST /generate` → creates a job row, fires `_process_job()` as an async task; polled via `GET /jobs/{id}`                |
+| `api/voices.py`                 | CRUD for voice profiles                                                                                                   |
+| `api/health.py`                 | Health + model-status endpoints                                                                                           |
+| `api/media.py`                  | Media/object retrieval helpers                                                                                            |
+| `api/settings.py`               | App/generation settings persistence                                                                                       |
 | `services/omnivoice_service.py` | Singleton wrapping the OmniVoice model; loads once, offloads to CPU after generation, caches clone prompts per profile ID |
-| `utils/audio.py` | WAV save/load helpers |
+| `utils/audio.py`                | WAV save/load helpers                                                                                                     |
 
 **API surface**
 
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| GET | `/health` | Health check + model status |
-| GET | `/models/status` | Detailed model loading status |
-| GET/POST | `/voices` | List / create voice profiles |
-| GET/PUT/DELETE | `/voices/{id}` | Read / update / delete a profile |
-| GET | `/voices/{id}/audio` | Download reference audio |
-| POST | `/generate` | Submit a TTS/clone/design job |
-| GET | `/jobs/{id}` | Poll job status |
-| GET | `/jobs/{id}/audio` | Download generated audio (WAV) |
-| GET | `/jobs/{id}/audio/mp3` | On-demand MP3 (via `ffmpeg`) |
+| Method         | Path                   | Description                      |
+| -------------- | ---------------------- | -------------------------------- |
+| GET            | `/health`              | Health check + model status      |
+| GET            | `/models/status`       | Detailed model loading status    |
+| GET/POST       | `/voices`              | List / create voice profiles     |
+| GET/PUT/DELETE | `/voices/{id}`         | Read / update / delete a profile |
+| GET            | `/voices/{id}/audio`   | Download reference audio         |
+| POST           | `/generate`            | Submit a TTS/clone/design job    |
+| GET            | `/jobs/{id}`           | Poll job status                  |
+| GET            | `/jobs/{id}/audio`     | Download generated audio (WAV)   |
+| GET            | `/jobs/{id}/audio/mp3` | On-demand MP3 (via `ffmpeg`)     |
 
 ---
 
@@ -168,12 +168,12 @@ erDiagram
 
 Audio artifacts are **not** stored in the database. Reference clips and generated audio are written as objects, with the database holding only keys/paths and metadata.
 
-| Artifact | Location | Lifecycle |
-| -------- | -------- | --------- |
-| Reference audio | `voices/{id}/voice.wav` | Created with a profile; deleted with it |
-| Generated audio | `generated/{hash}.wav` | Created per job; retained for history |
-| MP3 renditions | derived on demand | Transcoded via `ffmpeg` at request time |
-| Model cache | `/data/models` (`HF_HOME`) | Downloaded once on first run |
+| Artifact        | Location                   | Lifecycle                               |
+| --------------- | -------------------------- | --------------------------------------- |
+| Reference audio | `voices/{id}/voice.wav`    | Created with a profile; deleted with it |
+| Generated audio | `generated/{hash}.wav`     | Created per job; retained for history   |
+| MP3 renditions  | derived on demand          | Transcoded via `ffmpeg` at request time |
+| Model cache     | `/data/models` (`HF_HOME`) | Downloaded once on first run            |
 
 ### MinIO storage flow
 
@@ -277,13 +277,13 @@ flowchart TB
 
 ## 9. Health Monitoring
 
-| Surface | Mechanism |
-| ------- | --------- |
-| Backend liveness | `GET /health` — returns service + model status; used by the Docker healthcheck |
-| Model readiness | `GET /models/status` — detailed load progress (the model loads asynchronously after boot) |
-| MinIO readiness | `mc ready local` healthcheck; backend `depends_on: minio: condition: service_healthy` |
-| Job-level status | `GET /jobs/{id}` — per-generation lifecycle (`queued → processing → completed/failed`) |
-| Frontend ↔ backend | Errors surfaced through TanStack Query states in the UI |
+| Surface            | Mechanism                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Backend liveness   | `GET /health` — returns service + model status; used by the Docker healthcheck            |
+| Model readiness    | `GET /models/status` — detailed load progress (the model loads asynchronously after boot) |
+| MinIO readiness    | `mc ready local` healthcheck; backend `depends_on: minio: condition: service_healthy`     |
+| Job-level status   | `GET /jobs/{id}` — per-generation lifecycle (`queued → processing → completed/failed`)    |
+| Frontend ↔ backend | Errors surfaced through TanStack Query states in the UI                                   |
 
 Because the model loads in the background after the process starts, the backend can report "up" while the model is still "loading" — the frontend distinguishes these via `/models/status`.
 
@@ -302,4 +302,4 @@ The current architecture targets a single-node, single-user/self-hosted deployme
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors. OmniVoice App is built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0); see [NOTICE](../../../../NOTICE).</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors. PeakVox (formerly OmniVoice App) is built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0); see [NOTICE](../../../../NOTICE).</sub>

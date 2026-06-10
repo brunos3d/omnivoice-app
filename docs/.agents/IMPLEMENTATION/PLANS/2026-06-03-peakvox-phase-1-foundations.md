@@ -15,6 +15,7 @@
 ## File Structure
 
 **Create:**
+
 - `backend/app/core/features.py` — the typed `Features` flag set + `for_edition()`.
 - `backend/app/core/editions.py` — `mount_cloud_routers(app)` edition-gated mounting helper.
 - `backend/app/cloud/__init__.py` — the Cloud-only module boundary (empty package; CE never imports its contents at runtime).
@@ -30,6 +31,7 @@
 - `backend/tests/test_api_key_prefix.py`
 
 **Modify:**
+
 - `backend/app/models/db.py` — add `Role`, `Creator`, `MarketplaceListing`, `CreditLedger`, `Transaction`, `Royalty`, `Payout` ORM models.
 - `backend/app/core/config.py` — add `features` property; default `APP_NAME` → "PeakVox".
 - `backend/app/main.py` — call `mount_cloud_routers(app)`.
@@ -43,6 +45,7 @@
 ## Task 1: Feature flags (`Features`)
 
 **Files:**
+
 - Create: `backend/app/core/features.py`
 - Create: `backend/tests/test_features.py`
 - Modify: `backend/app/core/config.py`
@@ -162,6 +165,7 @@ git commit -m "feat(core): edition-derived Features flags + PeakVox app name"
 ## Task 2: Schema-ready commercial ORM models
 
 **Files:**
+
 - Modify: `backend/app/models/db.py`
 - Create: `backend/tests/test_commercial_models.py`
 
@@ -334,6 +338,7 @@ git commit -m "feat(models): schema-ready commercial entities (creators, ledger,
 The runner's step 1 (`Base.metadata.create_all`) already creates every registered table. This task **proves** the new tables are created, stay empty in CE, and that re-running is idempotent — the additive guarantee from [Migration §7](../../ARCHITECTURE/migration-architecture.md).
 
 **Files:**
+
 - Create: `backend/tests/test_commercial_migration.py`
 - Modify: `backend/app/core/migrations.py` (only if Step 2 reveals a gap)
 
@@ -409,6 +414,7 @@ git commit -m "test(migrations): commercial tables auto-create, stay empty in CE
 ## Task 4: Provider seam interfaces + Null/Local adapters
 
 **Files:**
+
 - Create: `backend/app/services/providers/__init__.py` (empty)
 - Create: `backend/app/services/providers/base.py`
 - Create: `backend/app/services/providers/local.py`
@@ -572,6 +578,7 @@ git commit -m "feat(providers): vendor-neutral auth/billing/payment/payout seams
 ## Task 5: Provider registry resolved by edition
 
 **Files:**
+
 - Create: `backend/app/services/providers/registry.py`
 - Modify: `backend/tests/test_providers.py` (append)
 
@@ -654,6 +661,7 @@ git commit -m "feat(providers): edition-resolved provider registry"
 ## Task 6: Edition-gated router mounting + Cloud module boundary
 
 **Files:**
+
 - Create: `backend/app/cloud/__init__.py`
 - Create: `backend/app/core/editions.py`
 - Create: `backend/tests/test_editions.py`
@@ -776,6 +784,7 @@ git commit -m "feat(editions): cloud module boundary + edition-gated router moun
 ## Task 7: API key prefix `pv_live_` (accept legacy `ov_live_`)
 
 **Files:**
+
 - Modify: `backend/app/services/api_keys.py`
 - Create: `backend/tests/test_api_key_prefix.py`
 
@@ -866,7 +875,7 @@ Expected: all tests PASS — the new tables/flags/seams are additive and must no
 
 - [ ] **Step 2: If anything fails**
 
-Use superpowers:systematic-debugging. The most likely breakage is an existing test asserting `APP_NAME == "OmniVoice Platform"` or an `ov_live_` literal — update those assertions to the new values (PeakVox / `pv_live_`), since the legacy key path stays supported via `is_known_key`.
+Use superpowers:systematic-debugging. The most likely breakage is an existing test asserting `APP_NAME == "PeakVox (formerly OmniVoice App)"` or an `ov_live_` literal — update those assertions to the new values (PeakVox / `pv_live_`), since the legacy key path stays supported via `is_known_key`.
 
 - [ ] **Step 3: Commit any test fixes**
 
@@ -882,6 +891,7 @@ git commit -m "test: align existing tests with PeakVox name and pv_ key prefix"
 > **REQUIRED per `frontend/AGENTS.md`:** Before any Next.js work, read the relevant doc under `frontend/node_modules/next/dist/docs/`. Treat training data as outdated.
 
 **Files:**
+
 - Locate first: `cd frontend && grep -rl "OmniVoice" src/ | head` and `grep -rn "nav\|Nav\|sidebar\|Sidebar" src/app src/components | head` to find the brand string(s) and the navigation component.
 - Modify: the located brand/title file(s) and the located nav component.
 - Modify: `frontend/src/lib/api.ts` (add a features fetch) and `frontend/package.json` (`name` field if it reads `omnivoice`).
@@ -892,7 +902,7 @@ Run: `ls frontend/node_modules/next/dist/docs/` and read the doc relevant to the
 
 - [ ] **Step 2: Rebrand the visible product name**
 
-Replace user-facing "OmniVoice" / "OmniVoice Platform" strings with "PeakVox" in the located brand/title/metadata files (page `<title>`, header/logo text, README-driven UI copy). Do **not** rename the `omnivoice-base` model id or the `omnivoice` storage bucket — those are model/infra identifiers, not the product name (see [Migration §3](../../ARCHITECTURE/migration-architecture.md)).
+Replace user-facing "OmniVoice" / "PeakVox (formerly OmniVoice App)" strings with "PeakVox" in the located brand/title/metadata files (page `<title>`, header/logo text, README-driven UI copy). Do **not** rename the `omnivoice-base` model id or the `omnivoice` storage bucket — those are model/infra identifiers, not the product name (see [Migration §3](../../ARCHITECTURE/migration-architecture.md)).
 
 - [ ] **Step 3: Expose edition features to the frontend**
 

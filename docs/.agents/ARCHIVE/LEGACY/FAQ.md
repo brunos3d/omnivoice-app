@@ -4,9 +4,9 @@
 
 ---
 
-### What is OmniVoice App?
+### What is PeakVox (formerly OmniVoice App)?
 
-OmniVoice App is a self-hosted platform for **Voice Cloning**, **Text-to-Speech**, and **Voice Design**, built on top of the open-source [OmniVoice](https://github.com/k2-fsa/OmniVoice) model. It wraps OmniVoice in a polished multi-page web app, an async generation API, voice profile management, generation presets, and object storage — all deployable with a single `docker compose up`. It is a **source-available Community Edition** today, designed to grow into optional Cloud and Enterprise editions (see [COMMERCIAL_MODEL.md](COMMERCIAL_MODEL.md)).
+PeakVox (formerly OmniVoice App) is a self-hosted platform for **Voice Cloning**, **Text-to-Speech**, and **Voice Design**, built on top of the open-source [OmniVoice](https://github.com/k2-fsa/OmniVoice) model. It wraps OmniVoice in a polished multi-page web app, an async generation API, voice profile management, generation presets, and object storage — all deployable with a single `docker compose up`. It is a **source-available Community Edition** today, designed to grow into optional Cloud and Enterprise editions (see [COMMERCIAL_MODEL.md](COMMERCIAL_MODEL.md)).
 
 ### How is it different from ElevenLabs and other hosted services?
 
@@ -32,7 +32,7 @@ It depends on **how**:
 - ✅ **Allowed:** self-hosting, personal use, educational/research use, and **internal business use** within your own company.
 - ❌ **Not allowed without a separate commercial license:** reselling it, offering it to third parties as a hosted/managed service, running a competing SaaS, or white-labeling it.
 
-This is governed by the [OmniVoice App Community License](../../../../LICENSE) (based on the Elastic License 2.0). For commercial/managed-service rights, contact **bruno3dcontato@gmail.com**. Note also that the underlying OmniVoice model is Apache-2.0 and unaffected by this license. *(This is a summary, not legal advice — read the [LICENSE](../../../../LICENSE).)*
+This is governed by the [PeakVox (formerly OmniVoice App) Community License](../../../../LICENSE) (based on the Elastic License 2.0). For commercial/managed-service rights, contact **bruno3dcontato@gmail.com**. Note also that the underlying OmniVoice model is Apache-2.0 and unaffected by this license. _(This is a summary, not legal advice — read the [LICENSE](../../../../LICENSE).)_
 
 ### How does voice cloning work?
 
@@ -42,8 +42,8 @@ You provide a short reference clip (upload a file or record in the browser) of a
 
 ### What's the difference between Voice Cloning and Voice Design?
 
-- **Voice Cloning** reproduces a *specific existing* voice from a reference recording.
-- **Voice Design** builds a *new* voice from a controlled set of attributes (gender, age, pitch, style, accent) — no reference audio required.
+- **Voice Cloning** reproduces a _specific existing_ voice from a reference recording.
+- **Voice Design** builds a _new_ voice from a controlled set of attributes (gender, age, pitch, style, accent) — no reference audio required.
 
 ### How are files stored?
 
@@ -68,4 +68,4 @@ Read [CONTRIBUTING.md](../../../../CONTRIBUTING.md) for the workflow, branch str
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0).</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors. Built on [OmniVoice](https://github.com/k2-fsa/OmniVoice) (Apache-2.0).</sub>

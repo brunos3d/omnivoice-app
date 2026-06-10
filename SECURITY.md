@@ -1,14 +1,14 @@
 # Security Policy
 
-The OmniVoice App team takes the security of the project and its users seriously. This document explains how to report vulnerabilities and what to expect in return.
+The PeakVox (formerly OmniVoice App) team takes the security of the project and its users seriously. This document explains how to report vulnerabilities and what to expect in return.
 
 ## Supported Versions
 
-OmniVoice App is in active development toward a stable 1.0. Security fixes are provided for the latest released version on the `main` branch.
+PeakVox (formerly OmniVoice App) is in active development toward a stable 1.0. Security fixes are provided for the latest released version on the `main` branch.
 
-| Version | Supported |
-| ------- | --------- |
-| Latest release (`main`) | ✅ |
+| Version                  | Supported      |
+| ------------------------ | -------------- |
+| Latest release (`main`)  | ✅             |
 | Pre-release / older tags | ⚠️ Best effort |
 
 We recommend always running the latest version. Self-hosters are responsible for keeping their deployment, dependencies, and host environment up to date.
@@ -20,7 +20,7 @@ We recommend always running the latest version. Self-hosters are responsible for
 Instead, report privately using one of the following:
 
 1. **GitHub Security Advisories** — open a private advisory via the repository's **Security → Report a vulnerability** tab (preferred).
-2. **Email** — **bruno3dcontato@gmail.com** with the subject line `SECURITY: OmniVoice App`.
+2. **Email** — **bruno3dcontato@gmail.com** with the subject line `SECURITY: PeakVox (formerly OmniVoice App)`.
 
 Please include, where possible:
 
@@ -49,7 +49,7 @@ We ask that you:
 
 ## Security Expectations for Self-Hosters
 
-OmniVoice App ships with developer-friendly defaults that are **not** production-secure. Before exposing a deployment beyond localhost, you should:
+PeakVox (formerly OmniVoice App) ships with developer-friendly defaults that are **not** production-secure. Before exposing a deployment beyond localhost, you should:
 
 - **Change all default credentials**, especially `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (default `minioadmin`/`minioadmin`).
 - **Do not expose** the backend (`:8000`), MinIO API (`:9000`), or MinIO console (`:9001`) directly to the public internet. Place the app behind a reverse proxy with TLS.
@@ -61,12 +61,12 @@ OmniVoice App ships with developer-friendly defaults that are **not** production
 
 ## Scope
 
-This policy covers the OmniVoice App code in this repository. Vulnerabilities in the upstream [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine or other third-party dependencies (see [NOTICE](NOTICE)) should be reported to their respective maintainers; we are happy to help coordinate.
+This policy covers the PeakVox (formerly OmniVoice App) code in this repository. Vulnerabilities in the upstream [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine or other third-party dependencies (see [NOTICE](NOTICE)) should be reported to their respective maintainers; we are happy to help coordinate.
 
 ## Abuse and Misuse
 
-Security issues are distinct from **misuse** of the software (e.g. using it to clone a voice without consent). Misuse is addressed by the [Voice Usage Policy](VOICE_USAGE_POLICY.md) and the [LICENSE](LICENSE), not this policy. To report abuse of an OmniVoice App deployment you do not control, contact that deployment's operator.
+Security issues are distinct from **misuse** of the software (e.g. using it to clone a voice without consent). Misuse is addressed by the [Voice Usage Policy](VOICE_USAGE_POLICY.md) and the [LICENSE](LICENSE), not this policy. To report abuse of an PeakVox (formerly OmniVoice App) deployment you do not control, contact that deployment's operator.
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors.</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors.</sub>

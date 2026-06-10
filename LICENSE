@@ -1,7 +1,7 @@
-OmniVoice App Community License
+PeakVox (formerly OmniVoice App) Community License
 ===============================
 
-Copyright (c) 2026 Bruno Silva and the OmniVoice App contributors.
+Copyright (c) 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors.
 
 This software is licensed under the **Elastic License 2.0** (the "License"),
 reproduced in full in Part A below, together with the Supplemental Terms in
@@ -113,7 +113,7 @@ these terms.
 
 
 ================================================================================
-PART B — SUPPLEMENTAL TERMS (OmniVoice App Community Edition)
+PART B — SUPPLEMENTAL TERMS (PeakVox (formerly OmniVoice App) Community Edition)
 ================================================================================
 
 These Supplemental Terms clarify how the Limitations in Part A apply to this
@@ -155,7 +155,7 @@ To obtain a commercial license for any of the above, contact the maintainers
 
 ### B.3 Upstream compatibility
 
-This License applies only to the original code authored by the OmniVoice App
+This License applies only to the original code authored by the PeakVox (formerly OmniVoice App)
 contributors. It does not, and cannot, restrict your rights under the Apache
 License 2.0 with respect to the upstream OmniVoice project or any other
 third-party component distributed under its own license. You must comply with

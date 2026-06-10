@@ -1,6 +1,6 @@
 # Code of Conduct
 
-OmniVoice App is committed to a welcoming, professional, and harassment-free community. This Code of Conduct is adapted from the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+PeakVox (formerly OmniVoice App) is committed to a welcoming, professional, and harassment-free community. This Code of Conduct is adapted from the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
 
 ## Our Pledge
 
@@ -29,7 +29,7 @@ Examples of unacceptable behavior:
 
 ## Project-Specific Expectations
 
-Because OmniVoice App involves synthetic-voice technology, community members are additionally expected to:
+Because PeakVox (formerly OmniVoice App) involves synthetic-voice technology, community members are additionally expected to:
 
 - Uphold the [Voice Usage Policy](VOICE_USAGE_POLICY.md) in discussions, examples, demos, and contributed code.
 - Not request, share, or promote uses of the project intended to impersonate people without consent, deceive, or otherwise cause harm.
@@ -67,4 +67,4 @@ This Code of Conduct is adapted from the [Contributor Covenant](https://www.cont
 
 ---
 
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors.</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors.</sub>

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. This is a **master program plan**: each Phase below should be expanded into its own bite-sized, TDD task plan via `superpowers:writing-plans` immediately before that phase is executed. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Evolve OmniVoice App from a single-model, plain-textarea TTS tool into a multi-model "voice performance" platform with a rich, model-aware scripting editor — preserving the OmniVoice ecosystem, the self-hosted simplicity, and the SaaS-ready architecture already in place.
+**Goal:** Evolve PeakVox (formerly OmniVoice App) from a single-model, plain-textarea TTS tool into a multi-model "voice performance" platform with a rich, model-aware scripting editor — preserving the OmniVoice ecosystem, the self-hosted simplicity, and the SaaS-ready architecture already in place.
 
 **Architecture:** A backend **model registry** (catalog + DB + provider adapters) replaces the hardcoded single model. A **tag catalog** keyed per-model becomes the single source of truth for emotion/effect tags. The frontend center column becomes a **TipTap** rich editor that renders human-friendly emotion blocks, validates against the active model's tags, and serializes back to OmniVoice's `[tag]` plain-text syntax. The right sidebar becomes the control surface (Voice, Model, Settings, Output, Language, Voice Design, Emotion, Model Info, Generate). Generation, jobs, storage, and the public API are extended additively with a `model_id`.
 
@@ -40,34 +40,34 @@ Findings from a full read of the repository (2026-06-03, branch `feat/voice-perf
 
 ### 1.1 Backend
 
-| Area | Current reality | Implication for this initiative |
-|------|-----------------|---------------------------------|
-| Model loading | `backend/app/services/omnivoice_service.py` — a single `OmniVoiceService` singleton hardcoded to `settings.OMNIVOICE_MODEL` (`"k2-fsa/OmniVoice"`). Loads once at startup (`main.py` lifespan → `asyncio.create_task(omnivoice_service.load_model())`), offloads to CPU after each generation, single `_generation_lock`. | Needs a registry + provider abstraction. The offload-after-generation + single-resident-model VRAM discipline MUST be preserved. |
-| Generation | `backend/app/api/generation.py` — `POST /generate` creates a `GenerationJob` row, fires `_process_job()` as `asyncio.create_task`; polled via `GET /jobs/{id}`. `is_generating` → 409 if busy. MP3/OGG transcode on demand via ffmpeg. | `model_id` must thread through request → job row → `_process_job` → service. |
-| Job model | `backend/app/models/db.py` `GenerationJob` has **no** `model_id` column. `generation_params` is a JSON blob. | Add `model_id` column (additive migration). |
-| Voice model | `VoiceProfile` is rich and SaaS-ready: `public_voice_id`, `owner_id`, `generation_defaults` (JSON), `characteristics`, visibility flags. | A voice may later carry a `default_model_id` / per-model defaults. Not required for MVP. |
-| Schema migration | `backend/app/core/migrations.py` — idempotent, SQLite-safe, additive `ALTER TABLE ADD COLUMN` runner. The established pattern (not Alembic). | All new columns/tables follow this exact pattern. |
-| Public API | `backend/app/api/v1.py` — `/api/v1/voices`, `/api/v1/text-to-speech` (synchronous), API-key auth, camelCase schemas in `schemas/api.py`. `TextToSpeechRequest` has `voiceId, text, language, format` — **no `modelId`**. | Add optional `modelId` (additive, defaults to base model). |
-| Model status | `backend/app/api/health.py` — `GET /models/status` returns a single model's load state. | Becomes per-model; keep a back-compat aggregate. |
-| Config | `backend/app/core/config.py` — pydantic settings, `EDITION` flag (`community`/`cloud`/`enterprise`), `LOCAL_OWNER_ID`. | Registry default model + per-edition model availability hook here. |
+| Area             | Current reality                                                                                                                                                                                                                                                                                                           | Implication for this initiative                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Model loading    | `backend/app/services/omnivoice_service.py` — a single `OmniVoiceService` singleton hardcoded to `settings.OMNIVOICE_MODEL` (`"k2-fsa/OmniVoice"`). Loads once at startup (`main.py` lifespan → `asyncio.create_task(omnivoice_service.load_model())`), offloads to CPU after each generation, single `_generation_lock`. | Needs a registry + provider abstraction. The offload-after-generation + single-resident-model VRAM discipline MUST be preserved. |
+| Generation       | `backend/app/api/generation.py` — `POST /generate` creates a `GenerationJob` row, fires `_process_job()` as `asyncio.create_task`; polled via `GET /jobs/{id}`. `is_generating` → 409 if busy. MP3/OGG transcode on demand via ffmpeg.                                                                                    | `model_id` must thread through request → job row → `_process_job` → service.                                                     |
+| Job model        | `backend/app/models/db.py` `GenerationJob` has **no** `model_id` column. `generation_params` is a JSON blob.                                                                                                                                                                                                              | Add `model_id` column (additive migration).                                                                                      |
+| Voice model      | `VoiceProfile` is rich and SaaS-ready: `public_voice_id`, `owner_id`, `generation_defaults` (JSON), `characteristics`, visibility flags.                                                                                                                                                                                  | A voice may later carry a `default_model_id` / per-model defaults. Not required for MVP.                                         |
+| Schema migration | `backend/app/core/migrations.py` — idempotent, SQLite-safe, additive `ALTER TABLE ADD COLUMN` runner. The established pattern (not Alembic).                                                                                                                                                                              | All new columns/tables follow this exact pattern.                                                                                |
+| Public API       | `backend/app/api/v1.py` — `/api/v1/voices`, `/api/v1/text-to-speech` (synchronous), API-key auth, camelCase schemas in `schemas/api.py`. `TextToSpeechRequest` has `voiceId, text, language, format` — **no `modelId`**.                                                                                                  | Add optional `modelId` (additive, defaults to base model).                                                                       |
+| Model status     | `backend/app/api/health.py` — `GET /models/status` returns a single model's load state.                                                                                                                                                                                                                                   | Becomes per-model; keep a back-compat aggregate.                                                                                 |
+| Config           | `backend/app/core/config.py` — pydantic settings, `EDITION` flag (`community`/`cloud`/`enterprise`), `LOCAL_OWNER_ID`.                                                                                                                                                                                                    | Registry default model + per-edition model availability hook here.                                                               |
 
 ### 1.2 Frontend
 
-| Area | Current reality | Implication |
-|------|-----------------|-------------|
-| TTS page | `frontend/src/app/page.tsx` — `"use client"`, a plain shadcn `<Textarea>`, with **Language** and **Voice Design** rendered *below* the editor; `PageLayout` provides the docked right context panel. | Center becomes the rich editor; Language + Voice Design move into the right sidebar. |
-| Right panel | `frontend/src/components/generation/GenerationPanel.tsx` already renders `VoiceSelector`, `ModelSelector`, `GenerationSettings`, `OutputFormatSelector`. | The sidebar already exists — we extend it, not invent it. |
-| Model selector | `frontend/src/components/generation/ModelSelector.tsx` — a **stub** `<Select>` with a single hardcoded `omnivoice` option, explicitly commented "feature-ready for additional models". | Wire it to the live registry. |
-| Voice Design | `frontend/src/config/voice-design.ts` — controlled vocabulary, one-attribute-per-category rule, `buildInstruct()` → flat comma string. This is the model for how to do a tag catalog cleanly. | Reuse this pattern's shape for the tag catalog; keep voice_design distinct from emotion tags (different concept: speaker attributes vs inline performance directions). |
-| State | `frontend/src/store/use-store.ts` (Zustand) — holds `ttsText`, `selectedProfile`, `generationSettings`, `voiceDesign`, `ttsLanguage`, `activeJobId`, etc. `setSelectedProfile` auto-applies a voice's language. | Add `selectedModelId`, and the editor document/serialized text. Selecting a voice may set its default model. |
-| Generation hook | `frontend/src/hooks/use-generation.ts` — React Query mutation + polling, `useModelStatus()`. | Add `useModels()`, `useModelTags(modelId)`, `useActiveModel()`. |
-| Types | `frontend/src/types/index.ts` — `GenerationRequest`, `JobResponse`, `VoiceProfile`, `ModelStatus`. | Add `Model`, `ModelTag`, `ModelCapabilities`; add `model_id` to `GenerationRequest`. |
-| Shell | App Router server-frame + client-island pattern (recently refactored). `PageLayout` = scrollable center + docked `xl:` right panel + mobile slide-over sheet. Persistent `BottomPlayer`. | Editor is a client island inside the (server) page frame. |
-| UI kit | shadcn present incl. `command.tsx`, `popover.tsx`, `dropdown-menu.tsx`, `tabs.tsx`, `accordion.tsx`, `badge.tsx`. | `command` + `popover` are exactly what the slash/`[` menu needs. `accordion` drives the collapsible sidebar sections. No new primitives required. |
+| Area            | Current reality                                                                                                                                                                                                 | Implication                                                                                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTS page        | `frontend/src/app/page.tsx` — `"use client"`, a plain shadcn `<Textarea>`, with **Language** and **Voice Design** rendered _below_ the editor; `PageLayout` provides the docked right context panel.            | Center becomes the rich editor; Language + Voice Design move into the right sidebar.                                                                                   |
+| Right panel     | `frontend/src/components/generation/GenerationPanel.tsx` already renders `VoiceSelector`, `ModelSelector`, `GenerationSettings`, `OutputFormatSelector`.                                                        | The sidebar already exists — we extend it, not invent it.                                                                                                              |
+| Model selector  | `frontend/src/components/generation/ModelSelector.tsx` — a **stub** `<Select>` with a single hardcoded `omnivoice` option, explicitly commented "feature-ready for additional models".                          | Wire it to the live registry.                                                                                                                                          |
+| Voice Design    | `frontend/src/config/voice-design.ts` — controlled vocabulary, one-attribute-per-category rule, `buildInstruct()` → flat comma string. This is the model for how to do a tag catalog cleanly.                   | Reuse this pattern's shape for the tag catalog; keep voice_design distinct from emotion tags (different concept: speaker attributes vs inline performance directions). |
+| State           | `frontend/src/store/use-store.ts` (Zustand) — holds `ttsText`, `selectedProfile`, `generationSettings`, `voiceDesign`, `ttsLanguage`, `activeJobId`, etc. `setSelectedProfile` auto-applies a voice's language. | Add `selectedModelId`, and the editor document/serialized text. Selecting a voice may set its default model.                                                           |
+| Generation hook | `frontend/src/hooks/use-generation.ts` — React Query mutation + polling, `useModelStatus()`.                                                                                                                    | Add `useModels()`, `useModelTags(modelId)`, `useActiveModel()`.                                                                                                        |
+| Types           | `frontend/src/types/index.ts` — `GenerationRequest`, `JobResponse`, `VoiceProfile`, `ModelStatus`.                                                                                                              | Add `Model`, `ModelTag`, `ModelCapabilities`; add `model_id` to `GenerationRequest`.                                                                                   |
+| Shell           | App Router server-frame + client-island pattern (recently refactored). `PageLayout` = scrollable center + docked `xl:` right panel + mobile slide-over sheet. Persistent `BottomPlayer`.                        | Editor is a client island inside the (server) page frame.                                                                                                              |
+| UI kit          | shadcn present incl. `command.tsx`, `popover.tsx`, `dropdown-menu.tsx`, `tabs.tsx`, `accordion.tsx`, `badge.tsx`.                                                                                               | `command` + `popover` are exactly what the slash/`[` menu needs. `accordion` drives the collapsible sidebar sections. No new primitives required.                      |
 
 ### 1.3 What this means
 
-- **~40% of the scaffolding already exists** (right panel, model-selector stub, voice-design controlled-vocabulary pattern, SaaS-ready schema, idempotent migrations, additive public API). The work is mostly *filling in* and *replacing the textarea*, not greenfield.
+- **~40% of the scaffolding already exists** (right panel, model-selector stub, voice-design controlled-vocabulary pattern, SaaS-ready schema, idempotent migrations, additive public API). The work is mostly _filling in_ and _replacing the textarea_, not greenfield.
 - The single biggest new dependency is the **rich editor** (TipTap) and its **serialization/validation** core — these are the highest-risk items and get exemplar TDD detail in §15.
 - VRAM management is the biggest backend risk: multiple models cannot be resident at once on a typical self-hosted GPU.
 
@@ -77,16 +77,16 @@ Findings from a full read of the repository (2026-06-03, branch `feat/voice-perf
 
 ### AD-1 — Editor library: **TipTap v2 (ProseMirror)** ✅ recommended over Lexical
 
-| Criterion | TipTap v2 | Lexical | Verdict |
-|-----------|-----------|---------|---------|
-| Custom inline atoms (emotion tags as non-editable chips) | First-class `Node` with `atom: true` + React `NodeViewRenderer` | Custom `DecoratorNode` | Both capable; TipTap more ergonomic |
-| Slash / `[` trigger menus | `@tiptap/suggestion` (the exact utility powering `@tiptap/extension-mention`) — battle-tested | Hand-rolled via `TextNode` transforms + command listener | **TipTap** — purpose-built |
-| Serialization control (doc ⇄ OmniVoice `[tag]` text) | Deterministic `getText()` override / custom serializer per node; full ProseMirror schema control | `$generateNodesFromDOM` / manual node walk | **TipTap** — cleaner node→text mapping |
-| React integration | `@tiptap/react` (`useEditor`, `NodeViewWrapper`) | `@lexical/react` | Even |
-| Ecosystem / examples for "mention/tag" UX | Very large; mention tutorial is canonical | Smaller | **TipTap** |
-| Bundle size | Larger (~ProseMirror core) | Smaller | Lexical |
-| Learning curve / boilerplate | Lower | Higher | **TipTap** |
-| Headless + shadcn/Tailwind styling | Yes (headless) | Yes (headless) | Even |
+| Criterion                                                | TipTap v2                                                                                        | Lexical                                                  | Verdict                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------- |
+| Custom inline atoms (emotion tags as non-editable chips) | First-class `Node` with `atom: true` + React `NodeViewRenderer`                                  | Custom `DecoratorNode`                                   | Both capable; TipTap more ergonomic    |
+| Slash / `[` trigger menus                                | `@tiptap/suggestion` (the exact utility powering `@tiptap/extension-mention`) — battle-tested    | Hand-rolled via `TextNode` transforms + command listener | **TipTap** — purpose-built             |
+| Serialization control (doc ⇄ OmniVoice `[tag]` text)     | Deterministic `getText()` override / custom serializer per node; full ProseMirror schema control | `$generateNodesFromDOM` / manual node walk               | **TipTap** — cleaner node→text mapping |
+| React integration                                        | `@tiptap/react` (`useEditor`, `NodeViewWrapper`)                                                 | `@lexical/react`                                         | Even                                   |
+| Ecosystem / examples for "mention/tag" UX                | Very large; mention tutorial is canonical                                                        | Smaller                                                  | **TipTap**                             |
+| Bundle size                                              | Larger (~ProseMirror core)                                                                       | Smaller                                                  | Lexical                                |
+| Learning curve / boilerplate                             | Lower                                                                                            | Higher                                                   | **TipTap**                             |
+| Headless + shadcn/Tailwind styling                       | Yes (headless)                                                                                   | Yes (headless)                                           | Even                                   |
 
 **Decision:** TipTap v2. The dominant requirements here — non-editable tag atoms, a `/` and `[` suggestion menu, and **strict, testable serialization to a specific text grammar** — are exactly TipTap's wheelhouse (`@tiptap/suggestion` + custom `Node`). Lexical's smaller bundle does not outweigh the boilerplate cost for this tag-centric use case. We will keep the editor **headless** and style it with the existing Tailwind tokens so it matches the design system.
 
@@ -100,7 +100,7 @@ OmniVoice consumes **plain text with inline `[tag]` tokens**. Rich formatting (b
 - This keeps serialization total and lossless, keeps the API-safe text trivial to produce, and avoids users pasting rich content that the model can't honor.
 - The "Notion/modern AI writing tool feel" comes from **interaction polish** (slash menu, chips, placeholder, focus mode), not from rich-text features.
 
-This is a deliberate scope reduction from the brief's "rich text editing" — documented here as an autonomous architectural decision for correctness. (If real rich formatting is later wanted for *display only*, it can be layered without touching the serializer.)
+This is a deliberate scope reduction from the brief's "rich text editing" — documented here as an autonomous architectural decision for correctness. (If real rich formatting is later wanted for _display only_, it can be layered without touching the serializer.)
 
 ### AD-3 — Tags are model-scoped data, owned by the **backend**
 
@@ -108,8 +108,8 @@ The backend is the single source of truth for "which tags exist and which model 
 
 ### AD-4 — Two distinct concepts kept separate: **Voice Design** vs **Emotion Tags**
 
-- **Voice Design** (existing `config/voice-design.ts`, `instruct` string) = *global speaker attributes* (gender, age, accent…) applied once per generation.
-- **Emotion Tags** (new) = *inline performance directions* (`[happy]`, `[whisper]`, `[singing]`) interleaved with text at specific positions.
+- **Voice Design** (existing `config/voice-design.ts`, `instruct` string) = _global speaker attributes_ (gender, age, accent…) applied once per generation.
+- **Emotion Tags** (new) = _inline performance directions_ (`[happy]`, `[whisper]`, `[singing]`) interleaved with text at specific positions.
 
 These are not merged. Voice Design stays a sidebar control; Emotion Tags live inside the editor text. Both are model-aware (a model advertises `supported_tags` and `supported_voice_design`).
 
@@ -253,6 +253,7 @@ backend/app/services/
 ```
 
 `ModelRegistry` responsibilities:
+
 - `list_models() -> list[ModelDescriptor]` (filtered by `EDITION`)
 - `get(model_id) -> ModelDescriptor`
 - `resolve_default() -> ModelDescriptor`
@@ -264,16 +265,16 @@ VRAM contract preserved: provider's `generate` keeps the existing offload-to-CPU
 
 ### 3.5 API surface (all additive)
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/models` | List available models (descriptors, edition-filtered) |
-| GET | `/models/{id}` | One descriptor |
-| GET | `/models/{id}/tags` | Tag catalog with metadata (label/emoji/category) for this model |
-| GET | `/models/{id}/status` | Per-model load state |
-| GET | `/models/status` | **KEPT** — aggregate/default model state (back-compat) |
-| POST | `/generate` | **EXTENDED** — accepts optional `model_id` (defaults to base) |
-| GET | `/api/v1/models` | Public list (capabilities + tags), API-key auth |
-| POST | `/api/v1/text-to-speech` | **EXTENDED** — optional `modelId` |
+| Method | Path                     | Purpose                                                         |
+| ------ | ------------------------ | --------------------------------------------------------------- |
+| GET    | `/models`                | List available models (descriptors, edition-filtered)           |
+| GET    | `/models/{id}`           | One descriptor                                                  |
+| GET    | `/models/{id}/tags`      | Tag catalog with metadata (label/emoji/category) for this model |
+| GET    | `/models/{id}/status`    | Per-model load state                                            |
+| GET    | `/models/status`         | **KEPT** — aggregate/default model state (back-compat)          |
+| POST   | `/generate`              | **EXTENDED** — accepts optional `model_id` (defaults to base)   |
+| GET    | `/api/v1/models`         | Public list (capabilities + tags), API-key auth                 |
+| POST   | `/api/v1/text-to-speech` | **EXTENDED** — optional `modelId`                               |
 
 `POST /generate` validates: model exists & enabled; tags in `text` ⊆ model's `supported_tags` (422 with the offending tags otherwise — the authoritative safety net behind the UI). Threads `model_id` into the `GenerationJob` row and `_process_job` → `registry.generate(model_id, …)`.
 
@@ -324,6 +325,7 @@ frontend/src/
 ### 4.4 Dynamic, model-aware UI
 
 A `useActiveModel()` hook (reads `selectedModelId` from Zustand, joins with `useModels()`/`useModelTags()`) drives, reactively, on model change:
+
 - Toolbar chip set, slash/bracket menu items, live validation set, `ModelInfoCard`, capability-gated controls (e.g. hide singing affordances unless `supports_singing`), and re-validation of existing editor content (tags now-unsupported flip to invalid).
 
 ### 4.5 Right sidebar (the control surface)
@@ -446,11 +448,11 @@ Generate disabled · CTA: "Remove tag" | "Switch to OmniVoice Singing"
 ### 7.5 "Directing a voice performance" — reinforcing the concept
 
 - Page subtitle: **"Direct a voice performance."** (not "Generate audio").
-- Toolbar grouped as **performance directions**: *Emotion*, *Delivery* (whisper/calm/excited), *Vocal* (singing), *Reactions* (laughter/sigh/surprise).
+- Toolbar grouped as **performance directions**: _Emotion_, _Delivery_ (whisper/calm/excited), _Vocal_ (singing), _Reactions_ (laughter/sigh/surprise).
 - Generate button reads **"⚡ Generate Speech"**; while running, a "Directing…" micro-copy.
 - Chips use warm, human emoji; hover shows a one-line "what this does to the voice" description from the tag catalog.
-- Empty-state placeholder coaches: *"Write your script. Type `/` to add emotion, whisper, or singing."*
-- Model Info card frames capabilities as *what this performer can do* (🎵 can sing, 😊 emotional range, 🗣️ clones voices).
+- Empty-state placeholder coaches: _"Write your script. Type `/` to add emotion, whisper, or singing."_
+- Model Info card frames capabilities as _what this performer can do_ (🎵 can sing, 😊 emotional range, 🗣️ clones voices).
 
 ---
 
@@ -458,7 +460,7 @@ Generate disabled · CTA: "Remove tag" | "Switch to OmniVoice Singing"
 
 > Each Phase = one shippable increment behind a flag where risky. Tasks are at "half-day or less" granularity; the executing agent expands each into TDD steps via `writing-plans`.
 
-### EPIC A — Multi-Model Backend Foundation  → **Phase 1**
+### EPIC A — Multi-Model Backend Foundation → **Phase 1**
 
 **Goal:** Replace the hardcoded single model with a registry + provider abstraction, additively, with no behavior change for the default model.
 
@@ -482,7 +484,7 @@ Generate disabled · CTA: "Remove tag" | "Switch to OmniVoice Singing"
   - T1.4.3 `_process_job`: read `model_id`, call `registry.generate`.
 - **Acceptance:** see §14 Phase 1.
 
-### EPIC B — Experience Shell Redesign  → **Phase 2**
+### EPIC B — Experience Shell Redesign → **Phase 2**
 
 **Goal:** Move Language + Voice Design into the right sidebar; restructure the panel into the 9-section accordion with a pinned Generate; center column reserved for the editor (still the textarea until Phase 3). No functional regressions.
 
@@ -492,31 +494,35 @@ Generate disabled · CTA: "Remove tag" | "Switch to OmniVoice Singing"
 - **M2.4** Responsive: verify slide-over `Sheet` carries all sections; sticky mobile Generate.
 - **Acceptance:** §14 Phase 2.
 
-### EPIC C — Rich Editor  → **Phases 3–6**
+### EPIC C — Rich Editor → **Phases 3–6**
 
 #### Phase 3 — Rich editor foundation
+
 - **M3.1** Add TipTap deps; `PerformanceEditor.tsx` headless + Tailwind-styled; constrained schema (AD-2).
 - **M3.2** Bind editor ⇄ store: editor holds doc JSON; `serializeToOmniVoice` produces `ttsText`; Generate uses serialized text.
 - **M3.3** Replace `<Textarea>` in `page.tsx` with `<PerformanceEditor>`; preserve quick-prompts behavior (insert into editor) and Regenerate prefill (parse text → doc).
 - **M3.4** Empty-state placeholder + char/est-duration footer.
 
 #### Phase 4 — Tag system (serialization core)
+
 - **M4.1** `serialize.ts`, `parse.ts`, `tags.ts` pure modules (**fully TDD — see §15.1/§15.2**).
 - **M4.2** `EmotionTag` atom Node + `EmotionTagView` chip renderer.
 - **M4.3** `TagHighlight` decoration for invalid tags.
 - **M4.4** `useModelTags` + generated TS fallback (mirror `languages.generated.ts`).
 
 #### Phase 5 — Slash & bracket commands
+
 - **M5.1** `SlashMenu.ts` via `@tiptap/suggestion` (`/` trigger) + shadcn `command` popup.
 - **M5.2** `BracketMenu.ts` (`[` trigger) reusing the same item source/renderer.
 - **M5.3** Keyboard shortcuts (↑/↓/Enter/Tab/Esc), fuzzy filter, category grouping.
 
 #### Phase 6 — Emotion toolbar
+
 - **M6.1** `EmotionToolbar.tsx`: common-tag chips + "Insert ▾" full list, caret insertion.
 - **M6.2** `EmotionSettings.tsx` sidebar section.
 - **M6.3** Accessibility pass (roles, labels, focus, contrast) on menus/toolbar/chips.
 
-### EPIC D — Validation & Model-Aware UI  → **Phase 7**
+### EPIC D — Validation & Model-Aware UI → **Phase 7**
 
 - **M7.1** `validate.ts` pure module (**TDD — see §15.3**).
 - **M7.2** `useActiveModel()`; reactive re-validation on model switch.
@@ -524,21 +530,23 @@ Generate disabled · CTA: "Remove tag" | "Switch to OmniVoice Singing"
 - **M7.4** `ModelSelector` live (capability badges) + `ModelInfoCard`.
 - **M7.5** Backend authoritative tag validation on `/generate` (422 contract) + tests.
 
-### EPIC E — OmniVoice Singing Integration  → **Phase 8**
+### EPIC E — OmniVoice Singing Integration → **Phase 8**
 
 - **M8.1** `OmniVoiceSingingProvider`; confirm upstream repo id + load path.
 - **M8.2** Verify Singing tags end-to-end (`[singing]`, `[happy]`…); capability gating in UI.
 - **M8.3** Model-switch VRAM eviction test under real load.
 - **M8.4** Distilled model validated (fewer steps default surfaced in settings).
 
-### EPIC F — API Compatibility & Documentation  → **Phases 9–10**
+### EPIC F — API Compatibility & Documentation → **Phases 9–10**
 
 #### Phase 9 — API compatibility
+
 - **M9.1** `/api/v1/models` endpoint + camelCase schema.
 - **M9.2** `modelId` on `/api/v1/text-to-speech` (default base) + validation parity.
 - **M9.3** "Use in API" dialog uses shared serializer; examples include `modelId`.
 
 #### Phase 10 — Documentation
+
 - **M10.1** Update `docs/VOICE_MODEL.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `frontend/AGENTS.md`/`CLAUDE.md` model+editor sections.
 - **M10.2** In-app Model Information content + tag glossary.
 - **M10.3** `CHANGELOG.md` entry; migration notes for self-hosters.
@@ -571,18 +579,18 @@ Parallelisable: P2 alongside P1; P5 & P6 after P4 (can run concurrently).
 
 ## 10. Risk Analysis
 
-| ID | Risk | Likelihood | Impact | Mitigation |
-|----|------|-----------|--------|------------|
-| R-1 | **VRAM**: multiple models can't co-reside; switching thrashes load/offload (slow) | High | High | LRU=1 resident (AD-5); lazy load; surface "loading model…" state; keep base resident by default; document GPU expectations |
-| R-2 | **Serializer round-trip bugs** corrupt user text or drop tags | Med | High | Pure functions + exhaustive property/round-trip TDD (§15); serializer never throws; backend is authoritative validator |
-| R-3 | **TipTap learning curve / schema escapes** (users paste rich content) | Med | Med | Constrained schema (AD-2) strips marks on paste; spike in P3 before committing UX |
-| R-4 | **UI/API tag-validation drift** | Med | Med | Single backend source of truth (AD-3); backend re-validates (AD-6); contract tests assert parity |
-| R-5 | **Model load time** blocks first generation, looks broken | Med | Med | Per-model status endpoint + UI "loading" affordance; preload default at startup (existing behavior) |
-| R-6 | **Regression** in the preserved ML inference path during refactor | Low | High | OmniVoiceService refactor keeps identical call signature; golden-output test on base model before/after |
-| R-7 | **Unknown upstream repo ids / capabilities** for Distilled & Singing | Med | Med | Catalog is the only change point; confirm at P8 start; gate Distilled/Singing behind `status="available"` once verified |
-| R-8 | **Mobile editor ergonomics** (slash menu on touch keyboards) | Med | Low | Toolbar is the primary mobile path; `/`+`[` are progressive enhancement |
-| R-9 | **Scope creep** toward full rich text | Med | Med | AD-2 documented; reject marks/lists in schema |
-| R-10 | **Migration on large existing DBs** | Low | Med | Additive `ADD COLUMN` only; built-in upsert idempotent; tested on a copy |
+| ID   | Risk                                                                              | Likelihood | Impact | Mitigation                                                                                                                 |
+| ---- | --------------------------------------------------------------------------------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| R-1  | **VRAM**: multiple models can't co-reside; switching thrashes load/offload (slow) | High       | High   | LRU=1 resident (AD-5); lazy load; surface "loading model…" state; keep base resident by default; document GPU expectations |
+| R-2  | **Serializer round-trip bugs** corrupt user text or drop tags                     | Med        | High   | Pure functions + exhaustive property/round-trip TDD (§15); serializer never throws; backend is authoritative validator     |
+| R-3  | **TipTap learning curve / schema escapes** (users paste rich content)             | Med        | Med    | Constrained schema (AD-2) strips marks on paste; spike in P3 before committing UX                                          |
+| R-4  | **UI/API tag-validation drift**                                                   | Med        | Med    | Single backend source of truth (AD-3); backend re-validates (AD-6); contract tests assert parity                           |
+| R-5  | **Model load time** blocks first generation, looks broken                         | Med        | Med    | Per-model status endpoint + UI "loading" affordance; preload default at startup (existing behavior)                        |
+| R-6  | **Regression** in the preserved ML inference path during refactor                 | Low        | High   | OmniVoiceService refactor keeps identical call signature; golden-output test on base model before/after                    |
+| R-7  | **Unknown upstream repo ids / capabilities** for Distilled & Singing              | Med        | Med    | Catalog is the only change point; confirm at P8 start; gate Distilled/Singing behind `status="available"` once verified    |
+| R-8  | **Mobile editor ergonomics** (slash menu on touch keyboards)                      | Med        | Low    | Toolbar is the primary mobile path; `/`+`[` are progressive enhancement                                                    |
+| R-9  | **Scope creep** toward full rich text                                             | Med        | Med    | AD-2 documented; reject marks/lists in schema                                                                              |
+| R-10 | **Migration on large existing DBs**                                               | Low        | Med    | Additive `ADD COLUMN` only; built-in upsert idempotent; tested on a copy                                                   |
 
 ---
 
@@ -598,15 +606,15 @@ Parallelisable: P2 alongside P1; P5 & P6 after P4 (can run concurrently).
 
 ## 12. Testing Strategy
 
-| Layer | Tooling | Coverage |
-|-------|---------|----------|
-| Backend unit | pytest (existing `backend/tests/`) | descriptors/catalog validation; registry load/offload/evict (mocked provider); migration idempotency (re-run twice → no-op); tag validation 422 |
-| Backend contract | pytest + httpx | `/models*` shapes; `/generate` with/without `model_id`; `/api/v1/models`; UI/API validation parity |
-| Backend golden | pytest | base-model generation output stable across the service refactor (R-6) |
-| Editor pure-core | Vitest (mirror `scripts/generate-languages.test.mjs` ethos) | `serialize`/`parse` **round-trip** (`parse(serialize(doc)) ≅ doc`, `serialize(parse(text)) === text`); `validate` per model; never-throws property tests |
-| Frontend component | Vitest + Testing Library | EmotionTag chip render; slash/bracket menu insert; toolbar insert; model-switch re-validation; pre-submit gate |
-| E2E (smoke) | Playwright (or manual checklist, repo has chrome-devtools MCP) | type script → insert emotion via `/`, `[`, toolbar → switch model invalidates `[singing]` → generate → audio plays in BottomPlayer |
-| Accessibility | a11y MCP / manual | menu roles, focus trap, chip labels, contrast (Phase 6 gate) |
+| Layer              | Tooling                                                        | Coverage                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unit       | pytest (existing `backend/tests/`)                             | descriptors/catalog validation; registry load/offload/evict (mocked provider); migration idempotency (re-run twice → no-op); tag validation 422          |
+| Backend contract   | pytest + httpx                                                 | `/models*` shapes; `/generate` with/without `model_id`; `/api/v1/models`; UI/API validation parity                                                       |
+| Backend golden     | pytest                                                         | base-model generation output stable across the service refactor (R-6)                                                                                    |
+| Editor pure-core   | Vitest (mirror `scripts/generate-languages.test.mjs` ethos)    | `serialize`/`parse` **round-trip** (`parse(serialize(doc)) ≅ doc`, `serialize(parse(text)) === text`); `validate` per model; never-throws property tests |
+| Frontend component | Vitest + Testing Library                                       | EmotionTag chip render; slash/bracket menu insert; toolbar insert; model-switch re-validation; pre-submit gate                                           |
+| E2E (smoke)        | Playwright (or manual checklist, repo has chrome-devtools MCP) | type script → insert emotion via `/`, `[`, toolbar → switch model invalidates `[singing]` → generate → audio plays in BottomPlayer                       |
+| Accessibility      | a11y MCP / manual                                              | menu roles, focus trap, chip labels, contrast (Phase 6 gate)                                                                                             |
 
 TDD is mandatory for the three pure cores (§15). Every task lands with its tests; frequent commits.
 
@@ -626,39 +634,49 @@ TDD is mandatory for the three pure cores (§15). Every task lands with its test
 ## 14. Acceptance Criteria (per phase)
 
 **Phase 1 — Multi-model backend**
+
 - `GET /models` returns ≥1 model; base is `is_default`, `status` reflects load state.
 - `POST /generate` works with no `model_id` (base) **and** with an explicit valid `model_id`; invalid id → 404, unsupported tag → 422.
 - Default model still loads at startup; only one model resident on GPU at a time (verified via logs/metrics).
 - Migration re-runs cleanly twice; existing jobs unaffected. Golden base-model output unchanged.
 
 **Phase 2 — Layout**
+
 - Language + Voice Design now live in the right sidebar accordion (9 sections, §4.5 order); Generate pinned at panel bottom.
 - No functional regression: selecting voice, settings, output format, generate all behave as before; mobile slide-over shows all sections.
 
 **Phase 3 — Editor foundation**
+
 - Center column is the TipTap editor; typing plain text generates identically to the old textarea (serialized text == typed text when no tags).
 - Quick-prompts insert into the editor; History "Regenerate" prefills the editor via parse.
 
 **Phase 4 — Tag system**
+
 - Emotion tags render as "😊 happy" chips; `serialize`/`parse` round-trip tests pass; invalid tags visibly highlighted.
 
 **Phase 5 — Slash/bracket commands**
+
 - `/` and `[` both open the same categorized menu; keyboard nav + fuzzy filter work; selection inserts a chip and removes the trigger char.
 
 **Phase 6 — Toolbar**
+
 - Toolbar chips + "Insert ▾" insert tags at the caret; a11y checks pass.
 
 **Phase 7 — Validation & model-aware UI**
+
 - With Base selected, `[singing]` is flagged (live + pre-submit) and backend returns 422 if forced; with Singing selected it's valid and generates.
 - Switching models live re-validates existing content; `ModelSelector` shows capabilities; `ModelInfoCard` accurate.
 
 **Phase 8 — Singing**
+
 - OmniVoice Singing loads, generates with `[singing]`/emotion tags; model switch evicts the previous model without OOM; Distilled validated.
 
 **Phase 9 — API compatibility**
+
 - `GET /api/v1/models` lists models+capabilities+tags; `POST /api/v1/text-to-speech` honors optional `modelId` (defaults base) with the same tag validation as the UI; "Use in API" preview matches generated audio input.
 
 **Phase 10 — Documentation**
+
 - Docs updated (VOICE_MODEL, API, ARCHITECTURE, ROADMAP, CHANGELOG); in-app model info + tag glossary present; self-hoster migration notes published.
 
 ---
@@ -670,10 +688,12 @@ These are written to the full `writing-plans` TDD granularity as the template th
 ### 15.1 `serializeToOmniVoice` (Phase 4)
 
 **Files:**
+
 - Create: `frontend/src/editor/serialize.ts`
 - Test: `frontend/src/editor/serialize.test.ts`
 
 - [ ] **Step 1 — Write the failing test**
+
 ```ts
 import { describe, it, expect } from "vitest";
 import { serializeToOmniVoice } from "./serialize";
@@ -681,11 +701,17 @@ import { serializeToOmniVoice } from "./serialize";
 const doc = {
   type: "doc",
   content: [
-    { type: "paragraph", content: [
-      { type: "text", text: "Hello " },
-      { type: "emotionTag", attrs: { tagId: "happy", modelId: "omnivoice-singing" } },
-      { type: "text", text: " world" },
-    ]},
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Hello " },
+        {
+          type: "emotionTag",
+          attrs: { tagId: "happy", modelId: "omnivoice-singing" },
+        },
+        { type: "text", text: " world" },
+      ],
+    },
   ],
 };
 
@@ -694,10 +720,13 @@ describe("serializeToOmniVoice", () => {
     expect(serializeToOmniVoice(doc)).toBe("Hello [happy] world");
   });
   it("joins multiple paragraphs with newlines", () => {
-    const d = { type: "doc", content: [
-      { type: "paragraph", content: [{ type: "text", text: "a" }] },
-      { type: "paragraph", content: [{ type: "text", text: "b" }] },
-    ]};
+    const d = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "a" }] },
+        { type: "paragraph", content: [{ type: "text", text: "b" }] },
+      ],
+    };
     expect(serializeToOmniVoice(d)).toBe("a\nb");
   });
   it("returns '' for an empty doc and never throws on missing content", () => {
@@ -707,12 +736,18 @@ describe("serializeToOmniVoice", () => {
 ```
 
 - [ ] **Step 2 — Run, expect FAIL**
-Run: `cd frontend && npx vitest run src/editor/serialize.test.ts`
-Expected: FAIL — "serializeToOmniVoice is not a function".
+      Run: `cd frontend && npx vitest run src/editor/serialize.test.ts`
+      Expected: FAIL — "serializeToOmniVoice is not a function".
 
 - [ ] **Step 3 — Minimal implementation**
+
 ```ts
-type DocNode = { type: string; text?: string; attrs?: Record<string, unknown>; content?: DocNode[] };
+type DocNode = {
+  type: string;
+  text?: string;
+  attrs?: Record<string, unknown>;
+  content?: DocNode[];
+};
 
 export function serializeToOmniVoice(doc: DocNode): string {
   const paragraphs = (doc.content ?? []).map(serializeBlock);
@@ -732,9 +767,10 @@ function serializeInline(node: DocNode): string {
 ```
 
 - [ ] **Step 4 — Run, expect PASS**
-Run: `cd frontend && npx vitest run src/editor/serialize.test.ts` → PASS.
+      Run: `cd frontend && npx vitest run src/editor/serialize.test.ts` → PASS.
 
 - [ ] **Step 5 — Commit**
+
 ```bash
 git add frontend/src/editor/serialize.ts frontend/src/editor/serialize.test.ts
 git commit -m "feat(editor): add serializeToOmniVoice doc→text serializer"
@@ -743,28 +779,38 @@ git commit -m "feat(editor): add serializeToOmniVoice doc→text serializer"
 ### 15.2 `parseOmniVoiceText` + round-trip (Phase 4)
 
 **Files:**
+
 - Create: `frontend/src/editor/parse.ts`
 - Test: `frontend/src/editor/parse.test.ts`
 
 - [ ] **Step 1 — Failing test (incl. round-trip with the serializer)**
+
 ```ts
 import { describe, it, expect } from "vitest";
 import { parseOmniVoiceText } from "./parse";
 import { serializeToOmniVoice } from "./serialize";
 
-const model = { id: "omnivoice-singing", supported_tags: ["happy", "singing", "whisper"] };
+const model = {
+  id: "omnivoice-singing",
+  supported_tags: ["happy", "singing", "whisper"],
+};
 
 describe("parseOmniVoiceText", () => {
   it("converts known [tag] tokens to emotionTag nodes, text to text nodes", () => {
     const doc = parseOmniVoiceText("Hi [happy] there", model);
     const inline = doc.content[0].content;
     expect(inline[0]).toMatchObject({ type: "text", text: "Hi " });
-    expect(inline[1]).toMatchObject({ type: "emotionTag", attrs: { tagId: "happy", modelId: "omnivoice-singing" } });
+    expect(inline[1]).toMatchObject({
+      type: "emotionTag",
+      attrs: { tagId: "happy", modelId: "omnivoice-singing" },
+    });
     expect(inline[2]).toMatchObject({ type: "text", text: " there" });
   });
   it("marks unknown/unsupported tags as invalid", () => {
     const doc = parseOmniVoiceText("a [singing] b [bogus]", model);
-    const tags = doc.content[0].content.filter((n: any) => n.type === "emotionTag");
+    const tags = doc.content[0].content.filter(
+      (n: any) => n.type === "emotionTag",
+    );
     expect(tags[0].attrs.invalid).toBe(false);
     expect(tags[1].attrs.invalid).toBe(true);
   });
@@ -782,6 +828,7 @@ describe("parseOmniVoiceText", () => {
 - [ ] **Step 2 — Run, expect FAIL** (`npx vitest run src/editor/parse.test.ts`).
 
 - [ ] **Step 3 — Minimal implementation**
+
 ```ts
 const TAG_RE = /\[([a-z0-9][a-z0-9-]*)\]/g;
 type Model = { id: string; supported_tags: string[] };
@@ -790,20 +837,30 @@ export function parseOmniVoiceText(text: string, model: Model) {
   const lines = text.split("\n");
   return {
     type: "doc",
-    content: lines.map((line) => ({ type: "paragraph", content: parseInline(line, model) })),
+    content: lines.map((line) => ({
+      type: "paragraph",
+      content: parseInline(line, model),
+    })),
   };
 }
 
 function parseInline(line: string, model: Model) {
   const out: any[] = [];
-  let last = 0; let m: RegExpExecArray | null;
+  let last = 0;
+  let m: RegExpExecArray | null;
   TAG_RE.lastIndex = 0;
   while ((m = TAG_RE.exec(line)) !== null) {
-    if (m.index > last) out.push({ type: "text", text: line.slice(last, m.index) });
+    if (m.index > last)
+      out.push({ type: "text", text: line.slice(last, m.index) });
     const tagId = m[1];
-    out.push({ type: "emotionTag", attrs: {
-      tagId, modelId: model.id, invalid: !model.supported_tags.includes(tagId),
-    }});
+    out.push({
+      type: "emotionTag",
+      attrs: {
+        tagId,
+        modelId: model.id,
+        invalid: !model.supported_tags.includes(tagId),
+      },
+    });
     last = m.index + m[0].length;
   }
   if (last < line.length) out.push({ type: "text", text: line.slice(last) });
@@ -817,11 +874,13 @@ function parseInline(line: string, model: Model) {
 ### 15.3 Backend authoritative tag validation (Phase 7)
 
 **Files:**
+
 - Create: `backend/app/services/tag_validation.py`
 - Modify: `backend/app/api/generation.py` (call before job creation)
 - Test: `backend/tests/test_tag_validation.py`
 
 - [ ] **Step 1 — Failing test**
+
 ```python
 import pytest
 from app.services.tag_validation import extract_tags, find_unsupported_tags
@@ -840,6 +899,7 @@ def test_no_tags_is_empty():
 - [ ] **Step 2 — Run, expect FAIL** (`cd backend && python -m pytest tests/test_tag_validation.py -v`).
 
 - [ ] **Step 3 — Implementation**
+
 ```python
 import re
 _TAG_RE = re.compile(r"\[([a-z0-9][a-z0-9-]*)\]")
@@ -859,8 +919,9 @@ def find_unsupported_tags(text: str, supported: list[str]) -> list[str]:
 - [ ] **Step 4 — Run, expect PASS.**
 
 - [ ] **Step 5 — Wire into `/generate` (write the endpoint test first, then the call)**
-Endpoint test asserts: posting `text="[singing]"` with `model_id="omnivoice-base"` → HTTP 422, body lists `"singing"`.
-Then in `create_generation_job`, after resolving the model descriptor:
+      Endpoint test asserts: posting `text="[singing]"` with `model_id="omnivoice-base"` → HTTP 422, body lists `"singing"`.
+      Then in `create_generation_job`, after resolving the model descriptor:
+
 ```python
 from app.services.tag_validation import find_unsupported_tags
 bad = find_unsupported_tags(request.text, model.supported_tags)
@@ -883,7 +944,7 @@ if bad:
 - **Goal #7 API compatibility** → §6, Phase 9; shared serializer = API-safe text (AD-6). ✅
 - **Goal #8 Voice performance UX** → §7.5. ✅
 - **Goal #9 Implementation plan** → §8–§14 (epics, phases, tasks, deps, migration, testing, rollout, acceptance), all 10 named phases present. ✅
-- Placeholder scan: exemplar tasks contain real code/commands; remaining tasks explicitly deferred to per-phase `writing-plans` expansion (stated in §0). 
+- Placeholder scan: exemplar tasks contain real code/commands; remaining tasks explicitly deferred to per-phase `writing-plans` expansion (stated in §0).
 - Type consistency: `model_id` (snake, backend/store) vs `modelId` (camel, public API) is intentional and matches the repo's existing convention (`schemas/api.py`). `emotionTag` node + `tagId`/`modelId`/`invalid` attrs used consistently across §4.2, §15.1, §15.2.
 
 ---

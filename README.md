@@ -1,6 +1,6 @@
 <div align="center">
 
-# OmniVoice App
+# PeakVox (formerly OmniVoice App)
 
 **Self-hosted Voice Cloning, Text-to-Speech, and Voice Design — powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice).**
 
@@ -8,7 +8,7 @@ A premium, open, self-hostable platform for high-quality multilingual speech syn
 
 <!-- PROJECT BANNER -->
 <!-- Place the project banner image at docs/assets/banner.png and it will render here. -->
-<img src="./docs/assets/banner.png" alt="OmniVoice App" width="100%" />
+<img src="./docs/assets/banner.png" alt="PeakVox (formerly OmniVoice App)" width="100%" />
 
 [![License: Community](<https://img.shields.io/badge/license-Community%20(ELv2)-blue.svg>)](LICENSE)
 [![Built on OmniVoice](<https://img.shields.io/badge/engine-OmniVoice%20(Apache--2.0)-orange.svg>)](https://github.com/k2-fsa/OmniVoice)
@@ -24,11 +24,11 @@ A premium, open, self-hostable platform for high-quality multilingual speech syn
 
 ## Overview
 
-OmniVoice App turns the [OmniVoice](https://github.com/k2-fsa/OmniVoice) model into a complete, product-grade application: a polished multi-page web interface, a robust async generation API, voice profile management, generation presets, and object storage — packaged for single-command Docker deployment.
+PeakVox (formerly OmniVoice App) turns the [OmniVoice](https://github.com/k2-fsa/OmniVoice) model into a complete, product-grade application: a polished multi-page web interface, a robust async generation API, voice profile management, generation presets, and object storage — packaged for single-command Docker deployment.
 
 It is designed as **open core**: a free, source-available **Community Edition** you can self-host today, evolving toward optional **Cloud** and **Enterprise** editions. See [docs/COMMERCIAL_MODEL.md](docs/COMMERCIAL_MODEL.md) for the full strategy.
 
-> **Responsible use:** OmniVoice App can synthesize and clone human voices. All use is governed by the [Voice Usage Policy](VOICE_USAGE_POLICY.md). Cloning a real person's voice without their informed consent is prohibited.
+> **Responsible use:** PeakVox (formerly OmniVoice App) can synthesize and clone human voices. All use is governed by the [Voice Usage Policy](VOICE_USAGE_POLICY.md). Cloning a real person's voice without their informed consent is prohibited.
 
 ---
 
@@ -57,7 +57,7 @@ It is designed as **open core**: a free, source-available **Community Edition** 
 
 ## Architecture Overview
 
-OmniVoice App is two services — a **Next.js 15 frontend** and a **FastAPI backend** — plus **MinIO** object storage, all orchestrated by Docker Compose. Generation is fire-and-forget: the API returns a job ID immediately and the frontend polls until completion.
+PeakVox (formerly OmniVoice App) is two services — a **Next.js 15 frontend** and a **FastAPI backend** — plus **MinIO** object storage, all orchestrated by Docker Compose. Generation is fire-and-forget: the API returns a job ID immediately and the frontend polls until completion.
 
 ```mermaid
 flowchart LR
@@ -149,7 +149,7 @@ GPU is strongly recommended — OmniVoice reaches a real-time factor as low as ~
 
 #### CPU deployment
 
-No GPU? OmniVoice App still runs. Remove (or comment out) the `deploy.resources.reservations.devices` block in [`docker-compose.yml`](docker-compose.yml) for the `backend` service, then `docker compose up --build`. Expect substantially slower generation.
+No GPU? PeakVox (formerly OmniVoice App) still runs. Remove (or comment out) the `deploy.resources.reservations.devices` block in [`docker-compose.yml`](docker-compose.yml) for the `backend` service, then `docker compose up --build`. Expect substantially slower generation.
 
 ### Development setup (without Docker)
 
@@ -242,7 +242,7 @@ Found a vulnerability? **Please do not open a public issue.** Follow the respons
 
 ## License
 
-OmniVoice App is distributed under the **OmniVoice App Community License** (based on the [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license)) — a source-available license that permits self-hosting and personal, educational, and internal-business use, while prohibiting resale and competing managed/SaaS offerings. See **[LICENSE](LICENSE)** for the full terms and **[docs/COMMERCIAL_MODEL.md](docs/COMMERCIAL_MODEL.md)** for the licensing strategy.
+PeakVox (formerly OmniVoice App) is distributed under the **PeakVox (formerly OmniVoice App) Community License** (based on the [Elastic License 2.0](https://www.elastic.co/licensing/elastic-license)) — a source-available license that permits self-hosting and personal, educational, and internal-business use, while prohibiting resale and competing managed/SaaS offerings. See **[LICENSE](LICENSE)** for the full terms and **[docs/COMMERCIAL_MODEL.md](docs/COMMERCIAL_MODEL.md)** for the licensing strategy.
 
 The underlying [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine is licensed under the **Apache License 2.0** and is not modified or restricted by this license. See **[NOTICE](NOTICE)** for attributions.
 
@@ -250,11 +250,11 @@ The underlying [OmniVoice](https://github.com/k2-fsa/OmniVoice) engine is licens
 
 ## Acknowledgements
 
-- **[OmniVoice](https://github.com/k2-fsa/OmniVoice) by the [k2-fsa / Next-gen Kaldi](https://github.com/k2-fsa) team** — the massively-multilingual zero-shot TTS and voice-cloning engine that makes this project possible. All voice synthesis is performed by OmniVoice; OmniVoice App is an independent application built on top of it and is not affiliated with or endorsed by the k2-fsa team.
+- **[OmniVoice](https://github.com/k2-fsa/OmniVoice) by the [k2-fsa / Next-gen Kaldi](https://github.com/k2-fsa) team** — the massively-multilingual zero-shot TTS and voice-cloning engine that makes this project possible. All voice synthesis is performed by OmniVoice; PeakVox (formerly OmniVoice App) is an independent application built on top of it and is not affiliated with or endorsed by the k2-fsa team.
 - The open-source maintainers of Next.js, React, FastAPI, MinIO, and the wider ecosystem this project builds on.
 
 ---
 
 <div align="center">
-<sub>Copyright © 2026 Bruno Silva and the OmniVoice App contributors. Built on OmniVoice (Apache-2.0).</sub>
+<sub>Copyright © 2026 Bruno Silva and the PeakVox (formerly OmniVoice App) contributors. Built on OmniVoice (Apache-2.0).</sub>
 </div>

@@ -31,7 +31,7 @@ import threading
 import time
 import wave
 from datetime import datetime, timezone
-from typing import Annotated, Any, Iterator, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Response
@@ -99,20 +99,20 @@ class BuildVariantRequest(BaseModel):
 def _load_omnivoice_pipeline() -> Any:
     """Load the OmniVoice pipeline.
 
-    The first call imports ``omnivoice`` and constructs a
-    pipeline. Subsequent calls return the cached pipeline.
-    The function is the single load point; tests patch
-    ``_pipeline`` and ``_load_state`` to inject a mock without
-    exercising this code path.
+    The first call imports ``omnivoice`` and constructs the model.
+    Subsequent calls return the cached pipeline. The function is
+    the single load point; tests patch ``_pipeline`` and
+    ``_load_state`` to inject a mock without exercising this code.
     """
     global _pipeline, _sample_rate
-    from omnivoice import OmniVoicePipeline  # type: ignore
+    from omnivoice import OmniVoice  # type: ignore  # correct class (not OmniVoicePipeline)
 
-    _pipeline = OmniVoicePipeline.from_pretrained("k2-fsa/OmniVoice")
-    # OmniVoice outputs at 24kHz by default; the actual sample
-    # rate is exposed via the pipeline. The PeakVox runtime
-    # contract returns audio/wav with the pipeline's native rate.
-    _sample_rate = 24000
+    _pipeline = OmniVoice.from_pretrained("k2-fsa/OmniVoice")
+    # Prefer the model's declared sampling rate; fall back to 24kHz.
+    try:
+        _sample_rate = _pipeline.config.sampling_rate
+    except AttributeError:
+        _sample_rate = 24000
     return _pipeline
 
 
@@ -173,23 +173,53 @@ def _float32_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
 
 
 def _run_inference(req: GenerateRequest) -> tuple[np.ndarray, int]:
-    """Run OmniVoice inference. Returns (audio, sample_rate)."""
+    """Run OmniVoice inference. Returns (audio, sample_rate).
+
+    OmniVoice.generate() supports three modes:
+      1. Voice clone — ref_audio + ref_text (optional) clone the style.
+      2. Voice design — instruct string/list describes the desired voice.
+      3. Auto — model picks a voice itself (no ref_audio, no instruct).
+    """
     if _pipeline is None:
         raise HTTPException(status_code=503, detail="pipeline not loaded")
-    # OmniVoice's pipeline takes (text, voice_id, ref_audio, params).
-    # The adapter is responsible for translating PeakVox voice_id
-    # and the optional variant/artifact into OmniVoice's expected
-    # inputs; for Phase 3 the voice_id is the catalog voice id
-    # and ref_audio is read from the variant artifact.
-    generator: Iterator[tuple[str, np.ndarray]] = _pipeline.synthesize(
-        text=req.text,
-        voice_id=req.voice_id,
-        params=req.params,
-    )
-    chunks = [audio for _, audio in generator]
-    if not chunks:
+
+    import torch
+
+    params = req.params or {}
+
+    # Extract voice inputs from request params
+    ref_audio: Optional[str] = params.get("ref_audio_path") or None
+    ref_text: Optional[str] = params.get("ref_text") or params.get("transcript") or None
+    # instruct covers explicit user instructions; voice_design tags fall back.
+    # OmniVoice.generate() accepts instruct as str or list[str], but the list length
+    # must equal the number of texts (1 here). Join a tag list into a single string.
+    instruct = params.get("instruct") or None
+    if instruct is None:
+        voice_design = params.get("voice_design") or (params.get("generation_defaults") or {}).get("voice_design")
+        if voice_design:
+            instruct = ", ".join(str(v) for v in voice_design) if isinstance(voice_design, list) else str(voice_design)
+
+    gen_kwargs: dict[str, Any] = {"text": req.text}
+    if req.language and req.language != "auto":
+        gen_kwargs["language"] = req.language
+    if ref_audio is not None:
+        gen_kwargs["ref_audio"] = ref_audio
+    if ref_text is not None:
+        gen_kwargs["ref_text"] = ref_text
+    if instruct is not None:
+        gen_kwargs["instruct"] = instruct
+    if params.get("speed") is not None:
+        gen_kwargs["speed"] = float(params["speed"])
+    if params.get("duration") is not None:
+        gen_kwargs["duration"] = float(params["duration"])
+
+    audio_tensors: list = _pipeline.generate(**gen_kwargs)
+    if not audio_tensors:
         raise HTTPException(status_code=500, detail="inference produced no audio")
-    audio = np.concatenate(chunks)
+
+    # Squeeze batch dimension: OmniVoice returns (1, N) tensors; flatten to (N,)
+    # so that len(audio) == number of samples (required for correct duration calc).
+    audio = torch.cat(audio_tensors).cpu().float().squeeze().numpy()
     sample_rate = _sample_rate or 24000
     return audio, sample_rate
 

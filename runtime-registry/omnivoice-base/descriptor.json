@@ -18,7 +18,7 @@
     "image": {
       "repository": "peakvox/omnivoice-runtime",
       "tag": "0.1.5",
-      "image_size_mb": 8704.0
+      "image_size_mb": 9390.0
     },
     "build": {
       "entrypoint": "server.py",
@@ -43,7 +43,7 @@
       "reference_audio"
     ],
     "requirements": {
-      "gpu": "required",
+      "gpu": "optional",
       "min_vram_gb": 8,
       "cpu_cores": 4,
       "memory_gb": 16,

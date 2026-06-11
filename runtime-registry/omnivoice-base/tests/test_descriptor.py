@@ -91,7 +91,7 @@ def test_descriptor_image_repository_matches_omnivoice() -> None:
 
 def test_descriptor_image_tag_present() -> None:
     d = _read_descriptor()
-    assert d["spec"]["image"]["tag"] == "0.1.0"
+    assert d["spec"]["image"]["tag"] == "0.1.5"
 
 
 def test_descriptor_image_size_metadata_present() -> None:

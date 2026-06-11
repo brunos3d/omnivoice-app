@@ -10,8 +10,33 @@
 #   4. EXPOSE 8000 (descriptor's spec.service.port).
 #   5. CMD: uvicorn server:app --host 0.0.0.0 --port 8000
 #      (same as Kokoro — the Runtime Service Contract is stable).
+#
+# Base image: pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime.
+#   This image ships torch 2.8.0+cu128, torchaudio 2.8.0+cu128, and
+#   torchvision 0.23.0+cu128 already installed and ABI-matched against
+#   one CUDA 12.8 stack. OmniVoice 0.1.5 only requires torch>=2.4 /
+#   torchaudio>=2.4, so `pip install -r requirements.txt` keeps torch at
+#   2.8.0 and never touches the CUDA stack.
+#
+#   We deliberately do NOT force-reinstall torch here. A previous
+#   revision used a slim/CPU base and then ran
+#   `pip install --force-reinstall torch==2.8.0+cu128 torchaudio==... \
+#       torchvision --extra-index-url <cu128>`. That step failed the
+#   build: torchvision was UNPINNED and `--extra-index-url` keeps PyPI
+#   as the primary index, so pip resolved torchvision from PyPI against
+#   a torch build that did not match the explicitly pinned
+#   torch==2.8.0+cu128, producing a dependency-resolution / ABI break.
+#   Pinning the whole stack at the base-image layer removes that entire
+#   failure class — there is nothing left to re-resolve.
+#
+#   GPU vs CPU is selected at RUN time by the runtime driver
+#   (DockerRuntimeDriver._device_requests reads the `use_gpu` setting):
+#   with a GPU attached, torch.cuda.is_available() is True and the
+#   model loads on CUDA; with no GPU attached, the same cu128 torch
+#   build runs on CPU (torch.cuda.is_available() is False). The image
+#   is identical for both modes.
 
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -30,15 +55,12 @@ WORKDIR /app
 # that change less often than the source).
 COPY requirements.txt /app/requirements.txt
 
-# omnivoice upgrades torch via transitive deps. Use the documentation-recommended
-# versions (torch 2.8.0) to ensure full CUDA 12.8 support and flex_attention compatibility.
+# Install OmniVoice 0.1.5 on top of the pre-matched torch 2.8.0+cu128
+# stack. omnivoice requires torch>=2.4 / torchaudio>=2.4, both already
+# satisfied, so this does not move torch/torchaudio/torchvision. The
+# final import asserts the ABI is intact before the layer is committed.
 RUN pip install --no-cache-dir -r /app/requirements.txt && \
-    pip install --no-cache-dir --force-reinstall \
-        torch==2.8.0+cu128 \
-        torchaudio==2.8.0+cu128 \
-        torchvision \
-        --extra-index-url https://download.pytorch.org/whl/cu128 && \
-    python3 -c "import torch, torchaudio, torchvision; print('ABI OK — torch', torch.__version__, 'torchaudio', torchaudio.__version__, 'torchvision', torchvision.__version__)"
+    python3 -c "import torch, torchaudio, torchvision; assert torch.version.cuda, 'torch is not a CUDA build'; print('ABI OK — torch', torch.__version__, 'torchaudio', torchaudio.__version__, 'torchvision', torchvision.__version__)"
 
 # Copy the runtime service entrypoint.
 COPY server.py /app/server.py

@@ -81,6 +81,12 @@ def _make_fake_torch() -> types.ModuleType:
         return _FakeTensor(np.concatenate([t.arr for t in tensors], axis=0))
 
     fake.cat = cat  # type: ignore[attr-defined]
+    # The loader (_load_omnivoice_pipeline) reads torch.cuda.is_available()
+    # to pick the device and torch.float16/float32 for the dtype. Tests run
+    # on a CPU-only env (no real torch), so report CUDA unavailable.
+    fake.cuda = types.SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
+    fake.float16 = "float16"  # type: ignore[attr-defined]
+    fake.float32 = "float32"  # type: ignore[attr-defined]
     return fake
 
 
@@ -93,7 +99,9 @@ class _MockOmniVoicePipeline:
     """Stand-in for ``omnivoice.OmniVoice``.
 
     ``generate(**kwargs)`` records its kwargs and returns a list with one
-    (1, 24000) tensor — the real model's shape, batch dimension included.
+    (1, 24000) np.ndarray — the real OmniVoice 0.1.5 shape: ``generate``
+    returns a list of numpy arrays (batch dimension included), which the
+    server concatenates with ``np.concatenate`` and then squeezes.
     """
 
     SAMPLE_RATE = 24000
@@ -105,7 +113,7 @@ class _MockOmniVoicePipeline:
         self.calls.append(kwargs)
         one_second = np.zeros((1, self.SAMPLE_RATE), dtype=np.float32)
         one_second[0, : self.SAMPLE_RATE // 2] = 0.1  # non-silent half
-        return [_FakeTensor(one_second)]
+        return [one_second]
 
 
 @pytest.fixture
@@ -217,8 +225,11 @@ def test_loader_calls_from_pretrained_with_canonical_repo(monkeypatch) -> None:
 
     class _FakeOmniVoice:
         @classmethod
-        def from_pretrained(cls, repo: str) -> Any:
+        def from_pretrained(cls, repo: str, **kwargs: Any) -> Any:
+            # The GPU-aware loader passes device_map + dtype as kwargs;
+            # capture them so the canonical call shape is asserted.
             captured["repo"] = repo
+            captured["kwargs"] = kwargs
             return types.SimpleNamespace(
                 config=types.SimpleNamespace(sampling_rate=24000)
             )
@@ -226,10 +237,14 @@ def test_loader_calls_from_pretrained_with_canonical_repo(monkeypatch) -> None:
     fake_pkg = types.ModuleType("omnivoice")
     fake_pkg.OmniVoice = _FakeOmniVoice  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "omnivoice", fake_pkg)
+    monkeypatch.setitem(sys.modules, "torch", _make_fake_torch())
 
     try:
         srv._load_omnivoice_pipeline()
         assert captured["repo"] == "k2-fsa/OmniVoice"
+        # CPU-only test env → loader selects the cpu device + float32 dtype.
+        assert captured["kwargs"].get("device_map") == "cpu"
+        assert captured["kwargs"].get("dtype") == "float32"
         assert srv._sample_rate == 24000
     finally:
         srv._pipeline = None

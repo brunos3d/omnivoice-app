@@ -696,7 +696,7 @@ export interface ComposedRuntimeDescriptor {
 // (source_ref/format/digest) per ADR-0004 §6. NEVER the domain VoiceVariant.
 // ---------------------------------------------------------------------------
 
-export type RuntimeVariantTrust = "verified" | "community";
+export type RuntimeVariantTrust = "verified" | "community" | "private";
 
 export interface ComposedRuntimeVariant {
   id: string;

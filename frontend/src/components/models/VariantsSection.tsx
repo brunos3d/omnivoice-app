@@ -9,6 +9,7 @@ import {
   Download,
   Layers,
   Loader2,
+  Lock,
   Plus,
   Sparkles,
   Star,
@@ -88,25 +89,42 @@ const SOURCE_LABEL: Record<ComposedRuntimeVariant["source_type"], string> = {
   local: "Local",
 };
 
+const TRUST_BADGE: Record<
+  RuntimeVariantTrust,
+  { label: string; className: string; title: string; Icon: typeof BadgeCheck }
+> = {
+  verified: {
+    label: "Verified",
+    className: "bg-success/15 text-success hover:bg-success/20",
+    title:
+      "Curated by PeakVox: tested end-to-end with a known checkpoint source.",
+    Icon: BadgeCheck,
+  },
+  community: {
+    label: "Community",
+    className: "bg-warning/15 text-warning hover:bg-warning/20",
+    title:
+      "Imported from a public source: compatibility was checked but PeakVox has not audited this model. Use at your own risk.",
+    Icon: AlertTriangle,
+  },
+  private: {
+    label: "Private",
+    className: "bg-muted text-muted-foreground hover:bg-muted/80",
+    title:
+      "User-owned, local, not public, not audited. Never published or shared.",
+    Icon: Lock,
+  },
+};
+
 function TrustBadge({ trust }: { trust: RuntimeVariantTrust }) {
-  if (trust === "verified") {
-    return (
-      <Badge
-        variant="secondary"
-        className="gap-1 rounded-md bg-success/15 text-success hover:bg-success/20"
-        title="Curated by PeakVox: tested end-to-end with a known checkpoint source."
-      >
-        <BadgeCheck className="h-3 w-3" /> Verified
-      </Badge>
-    );
-  }
+  const { label, className, title, Icon } = TRUST_BADGE[trust] ?? TRUST_BADGE.community;
   return (
     <Badge
       variant="secondary"
-      className="gap-1 rounded-md bg-warning/15 text-warning hover:bg-warning/20"
-      title="User-imported: compatibility was checked but PeakVox has not validated this model. Use at your own risk."
+      className={cn("gap-1 rounded-md", className)}
+      title={title}
     >
-      <AlertTriangle className="h-3 w-3" /> Community
+      <Icon className="h-3 w-3" /> {label}
     </Badge>
   );
 }

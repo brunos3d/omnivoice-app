@@ -92,6 +92,21 @@ def test_compatible_candidate_passes_and_is_community_trust() -> None:
     assert result.reasons == []
 
 
+def test_local_source_is_private_trust() -> None:
+    # Task 27.1: a local/user-owned checkpoint imports as ``private``.
+    result = validate_variant_import(
+        _runtime(),
+        VariantImportCandidate(
+            source_ref="/data/my-checkpoints/f5-custom",
+            source_type="local",
+            declared_provider="f5-tts",
+            declared_capabilities=["tts"],
+        ),
+    )
+    assert result.compatible is True
+    assert result.trust == "private"
+
+
 def test_rejects_provider_mismatch() -> None:
     result = validate_variant_import(
         _runtime(),

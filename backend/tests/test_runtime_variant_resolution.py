@@ -12,6 +12,8 @@ are curated-by-default and pre-existing descriptors stay valid.
 
 from __future__ import annotations
 
+import pytest
+
 from app.services.runtime_registry import RuntimeRegistry
 from app.services.runtime_types import RuntimeDescriptor, RuntimeVariantDescriptor
 
@@ -104,3 +106,16 @@ def test_variant_trust_can_be_community() -> None:
         variant_id="pt-br", model_id="f5-tts-pt-br", trust="community"
     )
     assert imported.metadata.trust == "community"
+
+
+def test_variant_trust_can_be_private() -> None:
+    # Task 27.1: user-owned local checkpoint.
+    local = _variant(variant_id="my-voice", model_id="f5-tts-mine", trust="private")
+    assert local.metadata.trust == "private"
+
+
+def test_variant_trust_rejects_unknown_tier() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _variant(variant_id="x", model_id="f5-tts-x", trust="enterprise")

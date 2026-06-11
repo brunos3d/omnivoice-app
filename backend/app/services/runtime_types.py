@@ -76,10 +76,19 @@ def parse_idle_timeout_to_seconds(value: str) -> Optional[int]:
 #   verified  — curated by PeakVox: tested end-to-end, the checkpoint source is
 #               pinned/known, capabilities are provider-validated. The default
 #               for first-party `variants/*.json` shipped in this repo.
-#   community — user-imported (e.g. a Hugging Face checkpoint): compatibility is
-#               *declared and checked* but never provider-validated by PeakVox;
-#               "use at your own risk".
-RUNTIME_VARIANT_TRUST_VOCABULARY: FrozenSet[str] = frozenset({"verified", "community"})
+#   community — user-imported from a PUBLIC source (e.g. a Hugging Face repo):
+#               compatibility is *declared and checked* but never
+#               provider-validated by PeakVox; "use at your own risk".
+#   private   — user-owned, local, NOT public, NOT audited. A proprietary or
+#               in-progress checkpoint the owner does not want shared. Never a
+#               marketplace-publish candidate; lives only in the writable
+#               `/data` overlay, never in the shipped registry (Task 27.1).
+#
+# Trust is PROVENANCE ONLY — it never influences variant selection/resolution
+# (`select_variant` ignores it). It governs UI badging and publish eligibility.
+RUNTIME_VARIANT_TRUST_VOCABULARY: FrozenSet[str] = frozenset(
+    {"verified", "community", "private"}
+)
 
 
 RUNTIME_CAPABILITY_VOCABULARY: FrozenSet[str] = frozenset({
@@ -471,11 +480,13 @@ class RuntimeVariantMetadata(BaseModel):
     name: str = Field(..., min_length=1)
     runtime_id: str = Field(..., min_length=1)
     description: str = ""
-    # Provenance (Task 27 Phase H). Defaults to ``verified`` so every
-    # first-party variant shipped in this repo is curated-by-default and
-    # existing/hand-authored descriptors stay valid without the field. A
-    # Hugging Face / user import sets ``community``.
-    trust: Literal["verified", "community"] = "verified"
+    # Provenance (Task 27 Phase H; tiers extended Task 27.1). Defaults to
+    # ``verified`` so every first-party variant shipped in this repo is
+    # curated-by-default and existing/hand-authored descriptors stay valid
+    # without the field. A public Hugging Face import sets ``community``; a
+    # local/user-owned checkpoint sets ``private``. Trust is provenance only —
+    # it never affects resolution.
+    trust: Literal["verified", "community", "private"] = "verified"
     # Optional human-facing origin (e.g. the HF repo a community variant was
     # imported from). Never a model-internal artifact path — that lives on the
     # checkpoint and is never exposed on the public API (ADR-0004 §6).

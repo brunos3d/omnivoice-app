@@ -128,7 +128,7 @@ class VariantImportValidation:
     compatible: bool
     runtime_id: str
     proposed_variant_id: str
-    trust: Literal["verified", "community"]
+    trust: Literal["verified", "community", "private"]
     reasons: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
@@ -219,11 +219,17 @@ def validate_variant_import(
 
     proposed_id = candidate.requested_variant_id or derive_variant_id(candidate.source_ref)
 
+    # Trust is derived from provenance (Task 27.1): a local, user-owned
+    # checkpoint is ``private`` (never a publish candidate); a public source
+    # (HF/URL) is ``community``. PeakVox never grants ``verified`` on import —
+    # that requires curation + end-to-end provider validation.
+    trust = "private" if candidate.source_type == "local" else "community"
+
     return VariantImportValidation(
         compatible=not reasons,
         runtime_id=runtime_id,
         proposed_variant_id=proposed_id,
-        trust="community",
+        trust=trust,
         reasons=reasons,
         warnings=warnings,
     )

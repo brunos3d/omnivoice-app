@@ -199,6 +199,16 @@ class DockerRuntimeDriver:
             "PEAKVOX_RUNTIME_ID": desc.metadata.id,
             "PEAKVOX_RUNTIME_PROVIDER": desc.metadata.provider,
             "PEAKVOX_RUNTIME_VERSION": desc.metadata.version,
+            # Persist Hugging Face downloads on the shared /data volume instead
+            # of the container's ephemeral /root/.cache/huggingface. Model
+            # weights (OmniVoice ~3.3 GB, F5-TTS, etc.) are downloaded on first
+            # inference; without this they would be re-downloaded every time the
+            # container is recreated — notably every time the user toggles
+            # "Use GPU (CUDA)" in Settings, which restarts the runtime. /data is
+            # the same named volume the backend mounts (see _data_volume_mounts),
+            # so the cache survives stop/start, GPU<->CPU switches, and
+            # remove/reinstall of the runtime image.
+            "HF_HOME": "/data/hf-cache",
         }
         # CE canonical HF auth: when the user has configured a Hugging Face
         # token in Settings, every runtime container receives it so weight
@@ -210,6 +220,23 @@ class DockerRuntimeDriver:
         if hf_token:
             env["HF_TOKEN"] = hf_token
             env["HUGGING_FACE_HUB_TOKEN"] = hf_token
+
+        # GPU/CPU execution contract. The host's default docker runtime is
+        # often `nvidia` (nvidia-container-toolkit), which auto-injects ALL
+        # GPUs into every container via NVIDIA_VISIBLE_DEVICES=all UNLESS the
+        # variable is set explicitly. That means dropping `device_requests`
+        # alone does NOT give a CPU-only container — torch.cuda.is_available()
+        # would still return True. To make the "Use GPU (CUDA)" setting
+        # authoritative we must explicitly hide the GPUs when GPU is disabled
+        # (or the runtime declares no GPU need). `void` tells the nvidia
+        # runtime to inject no devices and no driver; CUDA_VISIBLE_DEVICES=""
+        # is a belt-and-suspenders guard for any inherited visibility.
+        from app.services.settings_service import get_device_settings
+        gpu_req = desc.spec.requirements.gpu
+        use_gpu = get_device_settings().get("use_gpu", True)
+        if gpu_req == "none" or not use_gpu:
+            env["NVIDIA_VISIBLE_DEVICES"] = "void"
+            env["CUDA_VISIBLE_DEVICES"] = ""
         return env
 
     def _restart_policy_arg(self, policy: str) -> dict:

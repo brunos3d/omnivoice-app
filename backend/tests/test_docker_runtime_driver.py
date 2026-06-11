@@ -571,10 +571,14 @@ def test_docker_driver_does_not_communicate_with_runtimeservices_directly() -> N
     # is urllib.request (for the substrate probe).
     import re
     text = open(drv_mod.__file__).read()
-    # No HTTP client library other than urllib is imported.
+    # No HTTP client library other than urllib is imported. Match real
+    # import statements only — a bare substring search collides with the
+    # legitimate docker-SDK ``device_requests`` kwarg (which contains
+    # "requests") and the prose in code comments.
     forbidden_http_imports = ["requests", "httpx", "aiohttp"]
     for lib in forbidden_http_imports:
-        assert lib not in text, (
+        pattern = rf"^\s*(?:import\s+{lib}\b|from\s+{lib}\b)"
+        assert re.search(pattern, text, re.MULTILINE) is None, (
             f"DockerRuntimeDriver must not import {lib}; the only "
             f"HTTP-shaped call is the substrate-internal /ready probe "
             f"via urllib."

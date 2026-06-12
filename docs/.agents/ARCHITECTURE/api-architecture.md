@@ -5,6 +5,13 @@ at the wire level, key namespacing, auth/metering seams, and stability guarantee
 
 > See also: [Domain](domain-architecture.md) · [Monetization](monetization-architecture.md)
 > · existing [API.md](../ARCHIVE/LEGACY/API.md) (current `/api/v1`)
+>
+> **Public API 2.0:** the wire-level contract — public identifiers (`public_voice_id`,
+> runtime-independent model id, RuntimeVariant `variantId`), the discovery resources
+> (models / capabilities / RuntimeVariants / compatibility), and the additive Generation v2
+> request (`variantId` + `generationSettings` vs `providerSettings`) — is specified in
+> [ADR-0020](../DECISIONS/adr-0020-public-api-2.0.md) and audited in
+> [`../VALIDATION/AUDITS/task-29-public-api-audit.md`](../VALIDATION/AUDITS/task-29-public-api-audit.md).
 
 ---
 

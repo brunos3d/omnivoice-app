@@ -113,6 +113,31 @@ New ADRs follow the naming convention `adr-NNNN-kebab-case.md`. Template:
   [`../VALIDATION/AUDITS/task-27-runtime-variants-audit.md`](../VALIDATION/AUDITS/task-27-runtime-variants-audit.md),
   [`../VALIDATION/RESEARCH/task-27-model-ecosystem-findings.md`](../VALIDATION/RESEARCH/task-27-model-ecosystem-findings.md).
 
+## Domain: Public API
+
+| ADR | Title | Status | Impl. |
+|---|---|---|---|
+| [0020](adr-0020-public-api-2.0.md) | Public API 2.0 — Voice-First, Model-Aware, Variant-Aware | Accepted (Task 29) | PARTIAL (discovery endpoints + Generation v2 fields + OpenAPI metadata IMPLEMENTED; streaming/auto-routing/batch PLANNED) |
+
+- **0020** — promotes `/api/v1` from a voices-and-generate stub into a
+  self-discoverable developer platform aligned with Voice → Model → Runtime →
+  RuntimeVariant → Generation. Formalizes three public identifier classes
+  (`public_voice_id`; runtime-independent **Model id** `omnivoice-base`;
+  checkpoint/FS-independent **RuntimeVariant id** `base`/`singing`/`pt-br`) and
+  fixes the public vocabulary so **`variantId` always means a RuntimeVariant**
+  (VoiceVariants stay strictly internal, ADR-0004 §6). Adds read-only discovery
+  resources (models, model detail, capabilities, RuntimeVariants, voice
+  compatible-models/compatible-variants) and an **additive** Generation v2
+  contract: optional `variantId` + a deliberate split between **`generationSettings`**
+  (platform-level, capability-gated, validated against the model's declared
+  `settings_schema`/`ModelCapabilities`, ADR-0003) and **`providerSettings`** (an
+  untyped, model-specific pass-through so adding a model parameter never changes
+  the API). Capability-driven, never id-branched. `{voiceId, text}` stays the
+  minimal call; all changes additive — `/api/v1` + `public_voice_id` stable
+  (Constitution Art. VIII). CE: all endpoints live, rate-limit/auth seams inert;
+  Cloud: same shape, seams activate, discovery account-scoped. See
+  [`../VALIDATION/AUDITS/task-29-public-api-audit.md`](../VALIDATION/AUDITS/task-29-public-api-audit.md).
+
 ## Reserved / future ADRs (write when the decision is actually made)
 
 These are tracked as live questions in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md):
@@ -137,6 +162,8 @@ ADR-0016 (RuntimeVariant forbidden-pattern entry) ──amended by──▶ ADR-
           (0016 NOT superseded; only the one clause is narrowed; invariants 1–12 stand)
 ADR-0018 (RuntimeVariant architecture) ──extended by──▶ ADR-0019
           (0018 NOT superseded; 0019 adds the trust dimension + import validate gate)
+ADR-0020 (Public API 2.0) ──extends──▶ ARCHITECTURE/api-architecture.md
+          (additive; no ADR superseded; surfaces Model/RuntimeVariant/capability on /api/v1)
 ```
 
 ---

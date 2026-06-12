@@ -35,7 +35,7 @@ export function UseInApiDialog({ voiceId, open, onOpenChange }: UseInApiDialogPr
         <DialogHeader>
           <DialogTitle>Use this voice in the API</DialogTitle>
           <DialogDescription>
-            Call the OmniVoice REST API with this voice. Replace the placeholder with an API
+            Call the PeakVox REST API with this voice. Replace the placeholder with an API
             key from the API → API Keys page.
           </DialogDescription>
         </DialogHeader>

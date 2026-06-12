@@ -7,19 +7,19 @@ import { getApiBaseUrl } from "@/lib/api"
 const STEPS = [
   { n: 1, title: "Create an API key", body: "Generate a key on the API Keys page. The full key is shown once — store it securely." },
   { n: 2, title: "Call the API", body: "Authenticate with Authorization: Bearer ov_live_… against the /api/v1 endpoints." },
-  { n: 3, title: "Generate speech", body: "POST /api/v1/text-to-speech with a voiceId and text to synthesize audio." },
+  { n: 3, title: "Generate speech", body: "POST /api/v1/text-to-speech with a voiceId and text. Add a modelId, variantId, or settings when you need them." },
 ]
 
 const LINKS = [
   { href: "/api/keys", title: "API Keys", body: "Create and revoke keys.", icon: KeyRound },
-  { href: "/api/voices", title: "Voice API", body: "Endpoint reference + examples.", icon: Code2 },
+  { href: "/api/voices", title: "API reference", body: "Endpoints, discovery & multi-language examples.", icon: Code2 },
   { href: "/api/usage", title: "Usage", body: "Track API consumption.", icon: BarChart3 },
 ]
 
 export default function ApiOverviewPage() {
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="API" description="Build with OmniVoice over a REST API addressed by stable Voice IDs." />
+      <PageHeader title="API" description="A voice-first, model-agnostic REST API addressed by stable Voice IDs." />
 
       <div className="mt-6 space-y-6">
         <Card>

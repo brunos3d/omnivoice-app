@@ -42,3 +42,6 @@ Thumbs.db
 # Environment
 .env.local
 .env.production
+
+# Tooling artifacts
+graphify-out/

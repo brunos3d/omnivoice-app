@@ -240,6 +240,8 @@ migration) is unblocked.
 | Surface | Status | Evidence |
 |---|---|---|
 | Versioned `/api/v1` | IMPLEMENTED (harden pending P9) | `api/v1.py` |
+| Public API 2.0 discovery (ADR-0020) | IMPLEMENTED (Task 29) | `api/v1.py` (`/models`, `/models/{id}`, `/models/{id}/capabilities`, `/models/{id}/variants[/{vid}]`, `/voices/{id}/compatible-models`, `/compatible-variants`); `schemas/api.py`; tests `test_api_v1_public` (12 tests) |
+| Generation v2 fields (ADR-0020) | IMPLEMENTED (Task 29) | `api/v1.py` (`TextToSpeechRequest.variantId/generationSettings/providerSettings`; additive, capability-gated, backward-compatible) |
 | `/voices` CRUD | IMPLEMENTED | `api/voices.py` |
 | `/variants` (+ summary, backfill) | IMPLEMENTED | `api/variants.py`, `api/variants_summary.py` |
 | `/models` (+ lifecycle) | IMPLEMENTED | `api/models.py` |
